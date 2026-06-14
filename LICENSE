@@ -1,0 +1,58 @@
+MIT License
+
+Copyright (c) 2026 TrinTech Digital Defense
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ADDITIONAL TERMS — AUTHORIZED USE ONLY
+
+While the MIT License permits broad use of this software, TrinTech Digital
+Defense requires that all users operate ApexRecon exclusively within the
+bounds of applicable local, national, and international law.
+
+Specifically:
+
+  1. AUTHORIZATION REQUIRED
+     You must have explicit written authorization from the owner of any
+     network, system, or domain before using ApexRecon to scan, enumerate,
+     or audit it. Unauthorized scanning is illegal in most jurisdictions
+     and is strictly prohibited under these terms.
+
+  2. NO MALICIOUS USE
+     This software may not be used to facilitate unauthorized access,
+     data exfiltration, denial of service, or any other malicious activity
+     against systems you do not own or have permission to test.
+
+  3. PROFESSIONAL RESPONSIBILITY
+     Users operating ApexRecon in a professional capacity (as consultants,
+     auditors, or managed service providers) are solely responsible for
+     ensuring their engagements are properly scoped and documented.
+
+  4. NO LIABILITY FOR MISUSE
+     TrinTech Digital Defense accepts no responsibility for damages,
+     legal consequences, or data loss resulting from unauthorized or
+     improper use of this software.
+
+Use responsibly. Audit ethically.
+
+TrinTech Digital Defense
+Trinidad and Tobago
+https://trintechdigitaldefense.github.io
