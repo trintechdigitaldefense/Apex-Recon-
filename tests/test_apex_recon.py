@@ -50,6 +50,17 @@ class SMBParserTests(unittest.TestCase):
         self.assertTrue(host["vuln_ms17010"])
         self.assertEqual(host["risk_level"], "CRITICAL")
 
+    def test_does_not_flag_not_vulnerable_status(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.9)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+|   State: NOT VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 1)
+        self.assertFalse(hosts[0]["vuln_ms17010"])
+        self.assertEqual(hosts[0]["risk_level"], "LOW")
+
 
 class CommandExecutionTests(unittest.TestCase):
     @patch.object(apex.subprocess, "run")
