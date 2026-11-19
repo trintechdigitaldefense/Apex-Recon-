@@ -303,7 +303,7 @@ def risk_badge(level):
 # ─────────────────────────────────────────────
 def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
-    now = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
 
     total    = len(hosts)
     critical = sum(1 for h in hosts if h["risk_level"] == "CRITICAL")
@@ -787,8 +787,26 @@ def smb_auditor_module():
             print(f"  {badge} {CYAN}{h['ip']}{RESET}  ({h['hostname']})  OS: {WHITE}{h['os']}{RESET}")
             if h["signing"] != "Unknown":
                 print(f"         SMB Signing: {WHITE}{h['signing']}{RESET}")
-            if h["vuln_ms17010"]:
-                print(f"         {RED}⚠ EternalBlue (MS17-010) — VULNERABLE{RESET}")
+            ms17_status = h.get("vuln_ms17010_status", "NOT_REPORTED")
+            if ms17_status == "INDICATOR":
+                print(f"         {RED}⚠ MS17-010 — Nmap NSE INDICATOR; independent verification required{RESET}")
+            elif ms17_status == "POTENTIAL":
+                print(f"         {YELLOW}⚠ MS17-010 — POTENTIAL indicator; further validation required{RESET}")
+            elif ms17_status == "NOT_VULNERABLE":
+                print(f"         {GREEN}MS17-010 — Nmap NSE reported NOT VULNERABLE{RESET}")
+            else:
+                print(f"         {YELLOW}MS17-010 — NOT TESTED / NO RESULT{RESET}")
+
+            ms10_status = h.get("vuln_ms10054_status", "NOT_REPORTED")
+            if ms10_status == "INDICATOR":
+                print(f"         {RED}⚠ MS10-054 — Nmap NSE INDICATOR; independent verification required{RESET}")
+            elif ms10_status == "POTENTIAL":
+                print(f"         {YELLOW}⚠ MS10-054 — POTENTIAL indicator; further validation required{RESET}")
+            elif ms10_status == "NOT_VULNERABLE":
+                print(f"         {GREEN}MS10-054 — Nmap NSE reported NOT VULNERABLE{RESET}")
+            else:
+                print(f"         {YELLOW}MS10-054 — NOT TESTED / NO RESULT{RESET}")
+
             if h["shares"]:
                 print(f"         Shares: {WHITE}{', '.join(h['shares'])}{RESET}")
             for finding in h["findings"]:
