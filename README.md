@@ -2,7 +2,7 @@
 
 **TrinTech Digital Defense** · Authorized network and OSINT assessment framework
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 
 ## Current branch status
 
@@ -37,7 +37,7 @@ This branch restores the last complete executable implementation found in Git hi
 
 ## Requirements
 
-- Python 3.9 or newer
+- Python 3.10 or newer
 - Linux or Termux environment
 - `nmap`, `whois`, `dig` (dnsutils), and `curl`
 
