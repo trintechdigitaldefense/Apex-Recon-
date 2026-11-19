@@ -208,10 +208,22 @@ def parse_smb_output(raw_output):
         if host_match:
             if current_host:
                 hosts.append(finalize_smb_host(current_host))
-            host_label = host_match.group(1)
-            ip_match = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", host_label)
-            ip = ip_match.group(1) if ip_match else host_label
-            hostname = host_label.split(" ")[0] if "(" in host_label else ip
+            host_label = host_match.group(1).strip()
+            # Nmap emits either a bare address or "hostname (address)".
+            # Parse both IP families with ipaddress rather than an IPv4-only regex.
+            hostname = host_label
+            address_candidate = host_label
+            if host_label.endswith(")") and "(" in host_label:
+                hostname, address_candidate = host_label.rsplit("(", 1)
+                hostname = hostname.strip() or address_candidate[:-1].strip()
+                address_candidate = address_candidate[:-1].strip()
+            address_candidate = address_candidate.strip().strip("[]")
+            try:
+                ip = str(ipaddress.ip_address(address_candidate))
+            except ValueError:
+                # Preserve hostname-only Nmap labels when no numeric address is present.
+                ip = host_label
+                hostname = host_label
             current_host = {
                 "ip": ip,
                 "hostname": hostname,
@@ -391,8 +403,17 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
               </div>
             </div>'''
         for f in h["findings"]:
-            fu = f.upper()
-            if "CRITICAL" in fu:
+            fu = str(f).upper()
+            # Map the parser's explicit evidence wording before generic text rules.
+            # POTENTIAL must be checked before INDICATOR because both contain
+            # the phrase "VULNERABILITY INDICATOR".
+            if "POTENTIAL VULNERABILITY INDICATOR" in fu:
+                sev, sev_cls = "MED", "med"
+                rec = "→ Validate the potential indicator with additional evidence before prioritizing remediation."
+            elif "VULNERABILITY INDICATOR" in fu:
+                sev, sev_cls = "HIGH", "high"
+                rec = "→ Independently verify the Nmap NSE indicator before treating it as confirmed."
+            elif "CRITICAL" in fu:
                 sev, sev_cls = "CRIT", "crit"
                 rec = "→ Patch immediately and isolate host from network."
             elif "HIGH" in fu:
