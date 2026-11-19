@@ -31,3 +31,21 @@ jobs:
         run: python -m compileall -q apex_recon_v2.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+  linux-dependency-smoke:
+    name: Linux dependency smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nmap whois dnsutils curl
+      - name: Verify dependency detection and safe startup imports
+        run: |
+          python -c "import apex_recon_v2 as apex; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24')"
