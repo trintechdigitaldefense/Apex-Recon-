@@ -22,7 +22,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Reduced the default Nmap timing template to T3.
 
 ### Validation
-- Added standard-library unit tests and GitHub Actions matrix validation for Python 3.9–3.12.
+- Added standard-library unit tests and GitHub Actions matrix validation for Python 3.10–3.12.
 
 ---
 
