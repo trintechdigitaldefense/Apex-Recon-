@@ -80,6 +80,18 @@ class CommandExecutionTests(unittest.TestCase):
         mocked_run.assert_not_called()
 
     @patch.object(apex.subprocess, "run")
+    def test_run_cmd_rejects_non_finite_and_excessive_timeouts(self, mocked_run):
+        for timeout in (float("nan"), float("inf"), float("-inf"), 601):
+            with self.subTest(timeout=timeout):
+                self.assertEqual(apex.run_cmd(["echo", "ok"], timeout=timeout), ("", "INVALID_TIMEOUT"))
+        mocked_run.assert_not_called()
+
+    @patch.object(apex.subprocess, "run")
+    def test_run_cmd_rejects_non_list_command(self, mocked_run):
+        self.assertEqual(apex.run_cmd({"echo": "ok"}), ("", "INVALID_COMMAND"))
+        mocked_run.assert_not_called()
+
+    @patch.object(apex.subprocess, "run")
     def test_run_cmd_handles_missing_dependency(self, mocked_run):
         mocked_run.side_effect = FileNotFoundError
         self.assertEqual(apex.run_cmd(["missing-tool"]), ("", "NOT_FOUND:missing-tool"))
