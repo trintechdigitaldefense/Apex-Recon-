@@ -184,6 +184,17 @@ def confirm_authorized_scope(target):
 # ─────────────────────────────────────────────
 # SMB Parser: Extract structured data from nmap output
 # ─────────────────────────────────────────────
+def finalize_smb_host(host):
+    """Do not label a host low-risk when required SMB checks produced no result."""
+    if host["risk_level"] == "LOW" and (
+        host["signing"] == "Unknown"
+        or host["vuln_ms17010_status"] == "NOT_REPORTED"
+        or host["vuln_ms10054_status"] == "NOT_REPORTED"
+    ):
+        host["risk_level"] = "UNASSESSED"
+    return host
+
+
 def parse_smb_output(raw_output):
     hosts = []
     current_host = None
@@ -196,7 +207,7 @@ def parse_smb_output(raw_output):
         host_match = re.match(r"Nmap scan report for (.+)", line)
         if host_match:
             if current_host:
-                hosts.append(current_host)
+                hosts.append(finalize_smb_host(current_host))
             host_label = host_match.group(1)
             ip_match = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", host_label)
             ip = ip_match.group(1) if ip_match else host_label
@@ -283,7 +294,7 @@ def parse_smb_output(raw_output):
                 active_vuln_script = None
 
     if current_host:
-        hosts.append(current_host)
+        hosts.append(finalize_smb_host(current_host))
 
     return hosts
 
@@ -294,6 +305,7 @@ def risk_badge(level):
         "MED":      RISK_MED,
         "MEDIUM":   RISK_MED,
         "LOW":      RISK_LOW,
+        "UNASSESSED": RISK_INFO,
         "INFO":     RISK_INFO,
     }
     return badges.get(level.upper(), RISK_INFO)
@@ -314,7 +326,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     host_cards_html = ""
     for i, h in enumerate(hosts):
         rl = h["risk_level"].upper()
-        risk_class = rl.lower() if rl in ("CRITICAL","HIGH","MEDIUM","LOW") else "low"
+        risk_class = rl.lower() if rl in ("CRITICAL","HIGH","MEDIUM","LOW","UNASSESSED") else "unassessed"
         pill_class = risk_class
 
         # Vuln badges
@@ -391,12 +403,18 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
               </div>
             </div>'''
         if not findings_html:
-            findings_html = '''
+            if rl == "UNASSESSED":
+                empty_finding = "No positive findings were parsed; assessment is incomplete"
+                empty_recommendation = "→ Complete the missing checks before treating this host as low risk."
+            else:
+                empty_finding = "No positive findings detected by the completed checks"
+                empty_recommendation = "→ Review the evidence and maintain the current patch level."
+            findings_html = f'''
             <div class="finding-item">
               <div class="finding-sev info">INFO</div>
               <div>
-                <div class="finding-text">No critical findings detected on this host</div>
-                <div class="finding-rec">→ Maintain current patch level. Continue monitoring.</div>
+                <div class="finding-text">{empty_finding}</div>
+                <div class="finding-rec">{empty_recommendation}</div>
               </div>
             </div>'''
 
@@ -519,6 +537,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   .host-card.risk-high::after     {{ background: var(--orange); }}
   .host-card.risk-medium::after   {{ background: var(--gold); }}
   .host-card.risk-low::after      {{ background: var(--green); }}
+  .host-card.risk-unassessed::after {{ background: var(--muted); }}
   .host-card-header {{ display: flex; align-items: center; gap: 16px; padding: 16px 20px 14px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }}
   .host-ip {{ font-family: var(--display); font-size: 1.1rem; font-weight: 700; color: var(--cyan); letter-spacing: 1px; }}
   .host-name {{ font-family: var(--mono); font-size: 12px; color: var(--muted); }}
@@ -528,6 +547,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   .risk-pill.high     {{ background: var(--orange); color: #000; }}
   .risk-pill.medium   {{ background: var(--gold);   color: #000; }}
   .risk-pill.low      {{ background: var(--green);  color: #000; }}
+  .risk-pill.unassessed {{ background: var(--muted); color: #fff; }}
   .host-card-body {{ display: grid; grid-template-columns: 1fr 1fr; }}
   .host-section {{ padding: 16px 20px 16px 24px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }}
   .host-section:nth-child(even) {{ border-right: none; }}
