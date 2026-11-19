@@ -14,6 +14,7 @@ import subprocess
 import time
 import ipaddress
 import shutil
+import math
 from html import escape as html_escape
 from datetime import datetime
 
@@ -91,14 +92,14 @@ def check_deps():
 # Utility: Run subprocess safely
 # ─────────────────────────────────────────────
 def run_cmd(cmd, timeout=120):
-    """Run a command without a shell, with bounded time and no interactive stdin."""
-    if isinstance(cmd, (str, bytes)) or not cmd:
+    """Run a command without a shell, with a finite bounded time and no interactive stdin."""
+    if not isinstance(cmd, (list, tuple)) or not cmd:
         return "", "INVALID_COMMAND"
     if any(not isinstance(arg, str) or "\x00" in arg for arg in cmd):
         return "", "INVALID_COMMAND"
     try:
         timeout = float(timeout)
-        if timeout <= 0:
+        if not math.isfinite(timeout) or timeout <= 0 or timeout > 600:
             return "", "INVALID_TIMEOUT"
         result = subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout,
                                 stdin=subprocess.DEVNULL, shell=False, close_fds=True, check=False)
