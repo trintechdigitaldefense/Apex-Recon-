@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ApexRecon v2.0 — TrinTech Digital Defense
+ApexRecon 2.0.1-dev — recovered v2.0 baseline | TrinTech Digital Defense
 Enterprise-Grade Local Network & OSINT Audit Framework
 Optimized for Termux-Ubuntu proot (Android/Samsung A16)
 """
