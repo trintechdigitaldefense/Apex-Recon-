@@ -64,7 +64,7 @@ class SMBParserTests(unittest.TestCase):
         self.assertEqual(len(hosts), 1)
         self.assertFalse(hosts[0]["vuln_ms17010"])
         self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_VULNERABLE")
-        self.assertEqual(hosts[0]["risk_level"], "LOW")
+        self.assertEqual(hosts[0]["risk_level"], "UNASSESSED")
 
     def test_missing_vulnerability_script_result_is_not_reported_as_clean(self):
         sample = """Nmap scan report for fileserver.example (192.0.2.10)
@@ -74,6 +74,19 @@ class SMBParserTests(unittest.TestCase):
         hosts = apex.parse_smb_output(sample)
         self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_REPORTED")
         self.assertFalse(hosts[0]["vuln_ms17010"])
+        self.assertEqual(hosts[0]["risk_level"], "UNASSESSED")
+
+    def test_fully_reported_negative_checks_can_be_low_risk(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.13)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: required
+| smb-vuln-ms17-010:
+|   State: NOT VULNERABLE
+| smb-vuln-ms10-054:
+|   State: NOT VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
         self.assertEqual(hosts[0]["risk_level"], "LOW")
 
     def test_likely_vulnerable_is_only_a_potential_indicator(self):
@@ -178,6 +191,7 @@ class ReportSafetyTests(unittest.TestCase):
         self.assertNotIn("fonts.googleapis.com", report)
         self.assertIn("NOT TESTED / NO RESULT", report)
         self.assertIn("Low-Risk Hosts", report)
+        self.assertIn("assessment is incomplete", report)
         self.assertEqual(report_mode, 0o600)
 
     def test_log_file_is_created_with_private_permissions(self):
