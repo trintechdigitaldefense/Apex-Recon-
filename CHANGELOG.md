@@ -21,7 +21,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Escaped untrusted scan data in HTML reports.
 - Reduced the default Nmap timing template to T3.
 
+### Accuracy and reporting confidence
+- Distinguish explicit Nmap NSE vulnerability indicators from independently confirmed vulnerabilities; do not describe an NSE indicator as proof of exploitability.
+- Represent potential indicators separately from positive indicators and explicit NOT VULNERABLE results.
+- Show missing vulnerability-script output as NOT TESTED / NO RESULT instead of implying the host is clean.
+- Align SMB-signing severity with the documented medium-risk wording and treat non-hidden shares as findings requiring permission review.
+- Label report timestamps with the system's actual local timezone instead of appending an incorrect UTC label.
+- Rename the summary count from "Clean Hosts" to "Low-Risk Hosts".
+
 ### Validation
+- Added regression tests for vulnerability evidence confidence, missing script output, potential indicators, SMB-signing severity, and report status wording.
 - Added standard-library unit tests and GitHub Actions matrix validation for Python 3.10–3.12.
 
 ---
