@@ -186,10 +186,10 @@ def confirm_authorized_scope(target):
 # ─────────────────────────────────────────────
 def finalize_smb_host(host):
     """Do not label a host low-risk when required SMB checks produced no result."""
-    if host["risk_level"] == "LOW" and (
-        host["signing"] == "Unknown"
-        or host["vuln_ms17010_status"] == "NOT_REPORTED"
-        or host["vuln_ms10054_status"] == "NOT_REPORTED"
+    if host.get("risk_level", "UNASSESSED") == "LOW" and (
+        host.get("signing", "Unknown") == "Unknown"
+        or host.get("vuln_ms17010_status", "NOT_REPORTED") == "NOT_REPORTED"
+        or host.get("vuln_ms10054_status", "NOT_REPORTED") == "NOT_REPORTED"
     ):
         host["risk_level"] = "UNASSESSED"
     return host
@@ -317,14 +317,18 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
     now = datetime.now().astimezone().isoformat(timespec="seconds")
 
-    total    = len(hosts)
-    critical = sum(1 for h in hosts if h["risk_level"] == "CRITICAL")
-    high     = sum(1 for h in hosts if h["risk_level"] == "HIGH")
-    clean    = sum(1 for h in hosts if h["risk_level"] == "LOW")
+    # Revalidate report risk independently of the parser so callers cannot
+    # accidentally label incomplete evidence as LOW.
+    report_hosts = [finalize_smb_host(dict(h)) for h in hosts]
+
+    total    = len(report_hosts)
+    critical = sum(1 for h in report_hosts if h["risk_level"] == "CRITICAL")
+    high     = sum(1 for h in report_hosts if h["risk_level"] == "HIGH")
+    clean    = sum(1 for h in report_hosts if h["risk_level"] == "LOW")
 
     # ── Build host cards ──────────────────────
     host_cards_html = ""
-    for i, h in enumerate(hosts):
+    for i, h in enumerate(report_hosts):
         rl = h["risk_level"].upper()
         risk_class = rl.lower() if rl in ("CRITICAL","HIGH","MEDIUM","LOW","UNASSESSED") else "unassessed"
         pill_class = risk_class
@@ -377,6 +381,15 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
 
         # Findings
         findings_html = ""
+        if rl == "UNASSESSED":
+            findings_html += '''
+            <div class="finding-item">
+              <div class="finding-sev info">INFO</div>
+              <div>
+                <div class="finding-text">Assessment is incomplete: one or more required SMB checks returned no result</div>
+                <div class="finding-rec">→ Complete the missing checks before treating this host as low risk.</div>
+              </div>
+            </div>'''
         for f in h["findings"]:
             fu = f.upper()
             if "CRITICAL" in fu:
