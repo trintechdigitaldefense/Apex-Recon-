@@ -1,171 +1,88 @@
-# ApexRecon v2.1.0
+# ApexRecon — R1 Source Recovery and Stabilization
 
-> **TrinTech Digital Defense** — Enterprise-Grade Local Network, OSINT & Web Application Audit Framework
+**TrinTech Digital Defense** · Authorized network and OSINT assessment framework
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-Linux__%7C__Android__%7C__Termux-green.svg)
-![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-gray.svg)
-![Version](https://img.shields.io/badge/version-2.1.0-red.svg)
+<escape>![Python](https://img.shields.io/badge/Python-3.9%2B-blue)</escape>
 
----
+## Current branch status
 
-## Overview
+This branch restores the last complete executable implementation found in Git history (the v2.0 source at commit `086eb48`) and applies initial R1 stabilization changes.
 
-ApexRecon is a professional-grade network security audit framework optimized for **Termux-Ubuntu proot** (Android/Samsung A16) and desktop Linux environments. It combines external OSINT, SMB auditing, web application scanning, and structured reporting into a single CLI tool.
+**Important recovery finding:** the v2.1.0 source committed to `main` is incomplete. Its Python entry point ends after the SMB parser and prints a loader-placeholder message. The repository history inspected for R1 did not contain the complete v2.1.0 implementation. This branch therefore does not claim that the v2.1 web scanner, SMTP report delivery, or v2.1 configuration system are operational. Those features must be reconstructed and tested in a later, separate change.
 
-Built for **professional engagements** — every scan produces client-ready reports with risk classification, executive summaries, and remediation guidance.
+## Available modules in this recovered baseline
 
-## Features
+### 1. External OSINT
+- DNS lookups using `dig`
+- WHOIS collection
+- IP geolocation via ipinfo.io
+- Quick external port and banner scan using `nmap`
 
-### 🔍 Module 1: External OSINT
-- **DNS Enumeration** — A, AAAA, MX, NS, TXT, CNAME, SOA, CAA records via `dig`
-- **WHOIS Lookup** — Registrant, org, ASN, and creation date extraction
-- **IP Geolocation** — City, region, country, ASN via ipinfo.io
-- **External Port Scan** — nmap `-F` with banner grabbing
-- All results logged to JSON for traceability
+### 2. Local network SMB auditor
+- Local subnet discovery using actual route/interface prefix information
+- SMB host and share enumeration using Nmap scripts
+- SMB signing and selected legacy SMB vulnerability checks
+- Structured host findings and HTML reporting
 
-### 💻 Module 2: SMB Auditor
-- **Auto subnet detection** — reads local interface via `ip route`, falls back to `socket.gethostbyname()`
-- **nmap SMB scan** — 5-script suite: `smb-os-discovery`, `smb-enum-shares`, `smb-security-mode`, `smb-vuln-ms17-010`, `smb-vuln-ms10-054`
-- **Vulnerability detection** — EternalBlue (MS17-010), SMB memory corruption (MS10-054)
-- **SMB signing detection** — flags disabled signing as relay attack vector
-- Structured output parsing — raw nmap → host objects with IP, hostname, OS, shares, vuln flags
+## R1 stabilization changes
 
-### 🌐 Module 3: Web Application Scanner *(NEW in 2.1)*
-- **SSL/TLS certificate analysis** — protocol, cipher, expiry, SAN, days remaining
-- **Security headers audit** — HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, and more
-- **CMS fingerprinting** — WordPress, Joomla, Drupal, Magento, Shopify, Wix, Squarespace + common paths
-- **Technology detection** — Server, X-Powered-By, React/Vue/Angular/jQuery signals
-- **Nikto integration** (optional) — quick-mode web vulnerability scan when installed
-- Findings fed into the same HTML report engine
+- Restore the complete executable v2.0 baseline rather than retain the truncated loader.
+- Add input validation for hostnames, IP addresses, and bounded IP/CIDR ranges.
+- Require explicit confirmation of written authorization for each scan scope.
+- Keep subprocess execution argument-list based, disable shell execution, close stdin, and enforce timeouts.
+- Replace guessed `/24` subnet construction with actual route/interface prefix parsing.
+- Escape untrusted scan data before inserting it into HTML reports.
+- Reduce the default Nmap timing template from `-T4` to `-T3`.
+- Add automated unit tests and GitHub Actions validation.
 
-### 📊 Reporting
-- **Risk Classification Engine** — auto-assigns LOW / MEDIUM / HIGH / CRITICAL
-- **HTML Report** — dark-themed, self-contained, client-ready
-- **Optional email delivery** — configure SMTP in `~/.apexrecon/config.json`
-- **Persistent audit log** — `apex_recon.log` with timestamped entries
+## Requirements
 
-### 🛠️ Engineering
-- **Startup dependency checker** — validates nmap, whois, dig, curl, openssl (+ optional nikto)
-- **Config file** — `~/.apexrecon/config.json` for email, timeouts, user-agent
-- **Unified subprocess wrapper** — timeout handling, `FileNotFoundError` protection
-- **ANSI color palette** — consistent risk badges across terminal output
+- Python 3.9 or newer
+- Linux or Termux environment
+- `nmap`, `whois`, `dig` (dnsutils), and `curl`
 
-## Installation
+On Debian/Ubuntu/Termux Ubuntu:
 
 ```bash
-# Clone the repository
+apt-get update
+apt-get install -y python3 nmap whois dnsutils curl
+```
+
+## Run
+
+```bash
 git clone https://github.com/trintechdigitaldefense/Apex-Recon-.git
 cd Apex-Recon-
-
-# Run the framework
 python3 apex_recon_v2.py
 ```
 
-**Dependencies are auto-checked on startup.** Missing tools get `apt-get install` hints.
+## Test without scanning
 
-Recommended packages:
+The automated test suite uses mocked command execution and synthetic Nmap output. It does not scan external hosts.
+
 ```bash
-apt-get install nmap whois dnsutils curl openssl
-# optional for deeper web scans
-apt-get install nikto
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q apex_recon_v2.py tests
 ```
 
-## Usage
+## Authorization and safe use
 
-```
-ApexRecon v2.1.0
-Enterprise-Grade Local Network, OSINT & Web Application Audit Framework
-─────────────────────────────────────────────────
+ApexRecon is for assets you own or are explicitly authorized to assess. Before either module starts network activity, the operator must confirm written authorization for the exact target or range. SMB targets must be IP addresses or CIDR ranges containing no more than 4,096 addresses. Do not use this tool against third-party systems without permission.
 
-  Target Engagement Modules:
+## Known limitations — not client-release ready
 
-  [1] External Footprinting (OSINT)
-       DNS · WHOIS · GeoIP · Open Ports · Banner grab
-  [2] Local Network SMB Auditor
-       Host discovery · Share enum · EternalBlue · HTML report
-  [3] Web Application Scanner  NEW
-       SSL/TLS · Headers · CMS fingerprint · Nikto
+- The recovered branch is a stabilization baseline, not a completed v2.1 replacement.
+- The v2.1 Web Application Scanner is not included in this recovered source.
+- The current report is HTML; PDF export is not implemented in this baseline.
+- The legacy SMB vulnerability scripts are indicators and require independent verification before client reporting.
+- No continuous monitoring, multi-client tenancy, scheduling, or unattended 24-hour operation is provided.
+- CI and unit tests validate local logic only; they do not establish safe operation across every Linux/Termux device or prove scan accuracy.
 
-  [9] Exit Framework
-─────────────────────────────────────────────────
-Apex@TrinTech:~# 
-```
+## Next R1 gates
 
-## Configuration
+1. Pass syntax and unit-test workflows on the same commit.
+2. Review the complete diff for scope enforcement, command execution, report escaping, and data handling.
+3. Validate installation and interactive use in controlled Linux and Termux environments.
+4. Submit the pull request for maintainer review.
 
-On first run a config file is created at `~/.apexrecon/config.json`:
-
-```json
-{
-  "email": {
-    "enabled": false,
-    "smtp_server": "smtp.gmail.com",
-    "smtp_port": 587,
-    "username": "",
-    "password": "",
-    "from_addr": "",
-    "to_addrs": []
-  },
-  "timeouts": {
-    "nmap": 180,
-    "web": 15,
-    "ssl": 10
-  },
-  "web": {
-    "user_agent": "ApexRecon/2.1 (+https://trintechdigitaldefense.github.io)",
-    "follow_redirects": true
-  }
-}
-```
-
-Enable email delivery by setting `"enabled": true` and filling SMTP credentials.
-
-## Architecture
-
-```
-apex_recon_v2.py        # Main entry point, CLI menu, all modules
-CHANGELOG.md            # Version history
-LICENSE                 # Copyright notice
-README.md               # This file
-```
-
-## Output
-
-### Terminal
-```
-[*] Running external port scan...
-[+] Port 22/tcp: SSH (OpenSSH 8.9) — MEDIUM severity
-[+] Port 445/tcp: Microsoft-DS (Samba 4.15) — CRITICAL severity
-    ├── Vulnerability: smb-vuln-ms17-010 (EternalBlue) — RISK_HIGH
-    ├── Vulnerability: smb-vuln-ms10-054 (SMB corruption) — RISK_HIGH
-    └── SMB Signing: disabled — relay attack vector
-```
-
-### HTML Report
-Each scan produces `apex_report_YYYYMMDD_HHMMSS.html` — self-contained dark-themed report ready for client delivery.
-
-## Roadmap
-
-| Version | Status |
-|---------|--------|
-| **2.0.0** | ✅ Released — OSINT, SMB, reporting, risk classification |
-| **2.1.0** | ✅ Released — Web Application Scanner, SSL/TLS, headers, CMS fingerprint, config, email delivery |
-| **2.2.0** | 📋 Planned — PDF export, multi-target batch mode, improved Nikto parsing |
-| **3.0.0** | 📋 Planned — Subdomain brute-force, API mode, Caribbean/LatAm compliance mapping |
-
-## License
-
-All Rights Reserved — TrinTech Digital Defense
-
-## About
-
-TrinTech Digital Defense is a Trinidad & Tobago cybersecurity consultancy.
-
-- 🌐 [trintechdigitaldefense.github.io](https://trintechdigitaldefense.github.io)
-- 📧 [trintechdigitaldefense@gmail.com](mailto:trintechdigitaldefense@gmail.com)
-- 📱 +1 (868) 362-0679
-
----
-
-*DEFEND. DETECT. DOMINATE. 🇹🇹*
+No merge, production release, or client deployment is authorized by this branch.
