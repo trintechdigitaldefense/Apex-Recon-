@@ -1,5 +1,6 @@
 import importlib.util
 import tempfile
+import stat
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -139,6 +140,16 @@ class ReportSafetyTests(unittest.TestCase):
         self.assertNotIn('<img src=x', report)
         self.assertIn("&lt;img", report)
         self.assertNotIn('onerror="alert(1)"', report)
+        self.assertNotIn("fonts.googleapis.com", report)
+        self.assertEqual(stat.S_IMODE(Path(path).stat().st_mode), 0o600)
+
+    def test_log_file_is_created_with_private_permissions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "apex_recon.log"
+            with patch.object(apex, "LOG_FILE", str(log_path)):
+                apex.log("private test record")
+            self.assertEqual(stat.S_IMODE(log_path.stat().st_mode), 0o600)
+            self.assertIn("private test record", log_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
