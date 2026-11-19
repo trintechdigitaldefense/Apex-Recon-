@@ -35,6 +35,13 @@ This branch restores the last complete executable implementation found in Git hi
 - Reduce the default Nmap timing template from `-T4` to `-T3`.
 - Add automated unit tests and GitHub Actions validation.
 
+## Data handling and report privacy
+
+- OSINT geolocation sends the resolved target IP address to the third-party ipinfo.io API. Do not use this module where that disclosure is prohibited; the geolocation lookup is not currently configurable or disabled independently.
+- Audit logs and generated HTML reports are created with owner-only permissions (`0600`) on supported POSIX filesystems.
+- Generated HTML reports use local fallback fonts and do not fetch Google Fonts or other remote assets when opened.
+- Treat logs and reports as confidential assessment evidence and store or transfer them only through approved channels.
+
 ## Requirements
 
 - Python 3.10 or newer
