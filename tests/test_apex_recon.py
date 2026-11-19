@@ -191,7 +191,7 @@ class ReportSafetyTests(unittest.TestCase):
         self.assertNotIn("fonts.googleapis.com", report)
         self.assertIn("NOT TESTED / NO RESULT", report)
         self.assertIn("Low-Risk Hosts", report)
-        self.assertIn("assessment is incomplete", report)
+        self.assertIn("assessment is incomplete", report.lower())
         self.assertEqual(report_mode, 0o600)
 
     def test_log_file_is_created_with_private_permissions(self):
