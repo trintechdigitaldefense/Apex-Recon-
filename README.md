@@ -2,7 +2,7 @@
 
 **TrinTech Digital Defense** · Authorized network and OSINT assessment framework
 
-<escape>![Python](https://img.shields.io/badge/Python-3.9%2B-blue)</escape>
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 
 ## Current branch status
 
