@@ -209,6 +209,8 @@ def parse_smb_output(raw_output):
                 "signing": "Unknown",
                 "vuln_ms17010": False,
                 "vuln_ms10054": False,
+                "vuln_ms17010_status": "NOT_REPORTED",
+                "vuln_ms10054_status": "NOT_REPORTED",
                 "open_ports": [],
                 "risk_level": "LOW",
                 "findings": []
@@ -234,8 +236,9 @@ def parse_smb_output(raw_output):
         if "message_signing" in line_lower:
             if "disabled" in line_lower:
                 current_host["signing"] = "DISABLED"
-                current_host["risk_level"] = "HIGH"
-                current_host["findings"].append("SMB Signing DISABLED — relay attacks possible (MEDIUM risk)")
+                if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                    current_host["risk_level"] = "MEDIUM"
+                current_host["findings"].append("SMB signing is disabled — relay exposure may be possible; verify configuration and relay mitigations (MEDIUM risk)")
             elif "required" in line_lower:
                 current_host["signing"] = "Required"
             else:
@@ -248,20 +251,36 @@ def parse_smb_output(raw_output):
                 share = share_match.group(1).strip()
                 current_host["shares"].append(share)
                 if "$" not in share and "IPC" not in share:
+                    if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                        current_host["risk_level"] = "MEDIUM"
                     current_host["findings"].append(f"Non-hidden share detected: {share} — verify permissions")
 
-        if active_vuln_script and re.search(r"\bvulnerable\b", line_lower):
-            is_vulnerable = not re.search(r"\bnot\s+vulnerable\b", line_lower)
-            if is_vulnerable and active_vuln_script == "ms17-010":
-                current_host["vuln_ms17010"] = True
-                current_host["risk_level"] = "CRITICAL"
-                current_host["findings"].append("CRITICAL: MS17-010 (EternalBlue) — VULNERABLE to remote code execution!")
-            elif is_vulnerable and active_vuln_script == "ms10-054":
-                current_host["vuln_ms10054"] = True
-                if current_host["risk_level"] != "CRITICAL":
+        if active_vuln_script:
+            status = None
+            if re.search(r"\bnot\s+vulnerable\b", line_lower):
+                status = "NOT_VULNERABLE"
+            elif re.search(r"\b(likely|possibly|potentially)\s+vulnerable\b", line_lower):
+                status = "POTENTIAL"
+            elif re.search(r"\bvulnerable\b", line_lower):
+                status = "INDICATOR"
+            if status:
+                script = active_vuln_script
+                status_key = "vuln_ms17010_status" if script == "ms17-010" else "vuln_ms10054_status"
+                flag_key = "vuln_ms17010" if script == "ms17-010" else "vuln_ms10054"
+                current_host[status_key] = status
+                current_host[flag_key] = status in ("INDICATOR", "POTENTIAL")
+                if status == "INDICATOR":
                     current_host["risk_level"] = "HIGH"
-                current_host["findings"].append("HIGH: MS10-054 SMB memory corruption vulnerability detected")
-            active_vuln_script = None
+                    current_host["findings"].append(
+                        f"{script.upper()} vulnerability indicator reported by Nmap NSE; independently verify before treating it as confirmed"
+                    )
+                elif status == "POTENTIAL":
+                    if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                        current_host["risk_level"] = "MEDIUM"
+                    current_host["findings"].append(
+                        f"{script.upper()} potential vulnerability indicator reported by Nmap NSE; further validation required"
+                    )
+                active_vuln_script = None
 
     if current_host:
         hosts.append(current_host)
@@ -284,7 +303,7 @@ def risk_badge(level):
 # ─────────────────────────────────────────────
 def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
     total    = len(hosts)
     critical = sum(1 for h in hosts if h["risk_level"] == "CRITICAL")
@@ -299,10 +318,19 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
         pill_class = risk_class
 
         # Vuln badges
-        vuln_eb = '⚠ VULNERABLE' if h["vuln_ms17010"] else '✓ Clean'
-        vuln_eb_cls = 'vulnerable' if h["vuln_ms17010"] else 'clean'
-        vuln_ms = '⚠ VULNERABLE' if h["vuln_ms10054"] else '✓ Clean'
-        vuln_ms_cls = 'vulnerable' if h["vuln_ms10054"] else 'clean'
+        def vuln_display(status, legacy_flag):
+            if status == "INDICATOR":
+                return "⚠ INDICATOR", "vulnerable"
+            if status == "POTENTIAL":
+                return "⚠ POTENTIAL", "warn"
+            if status == "NOT_VULNERABLE":
+                return "✓ NOT VULNERABLE", "clean"
+            if status == "NOT_REPORTED":
+                return "NOT TESTED / NO RESULT", "warn"
+            return ("⚠ INDICATOR", "vulnerable") if legacy_flag else ("NOT TESTED / NO RESULT", "warn")
+
+        vuln_eb, vuln_eb_cls = vuln_display(h.get("vuln_ms17010_status", "NOT_REPORTED"), h["vuln_ms17010"])
+        vuln_ms, vuln_ms_cls = vuln_display(h.get("vuln_ms10054_status", "NOT_REPORTED"), h["vuln_ms10054"])
 
         signing_val = h.get("signing", "Unknown")
         if signing_val == "DISABLED":
@@ -346,8 +374,8 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
                 sev, sev_cls = "HIGH", "high"
                 rec = "→ Remediate within 24 hours. Review access controls."
             elif "SIGNING" in fu or "RELAY" in fu:
-                sev, sev_cls = "HIGH", "high"
-                rec = "→ Enable SMB signing via Group Policy immediately."
+                sev, sev_cls = "MED", "med"
+                rec = "→ Require SMB signing where supported and review relay mitigations."
             elif "SHARE" in fu or "NON-HIDDEN" in fu:
                 sev, sev_cls = "MED", "med"
                 rec = "→ Audit share permissions. Apply least-privilege access."
@@ -574,7 +602,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     <div class="stat-card s-total"><div class="stat-num">{total}</div><div class="stat-label">Hosts Found</div><div class="stat-icon">&#9672;</div></div>
     <div class="stat-card s-crit"><div class="stat-num">{critical}</div><div class="stat-label">Critical Risk</div><div class="stat-icon">&#9888;</div></div>
     <div class="stat-card s-high"><div class="stat-num">{high}</div><div class="stat-label">High Risk</div><div class="stat-icon">&#9650;</div></div>
-    <div class="stat-card s-clean"><div class="stat-num">{clean}</div><div class="stat-label">Clean Hosts</div><div class="stat-icon">&#10003;</div></div>
+    <div class="stat-card s-clean"><div class="stat-num">{clean}</div><div class="stat-label">Low-Risk Hosts</div><div class="stat-icon">&#10003;</div></div>
     <div class="stat-card s-dur"><div class="stat-num">{scan_duration}s</div><div class="stat-label">Scan Time</div><div class="stat-icon">&#9711;</div></div>
   </div>
 
