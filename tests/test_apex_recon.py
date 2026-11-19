@@ -110,6 +110,37 @@ class SMBParserTests(unittest.TestCase):
         self.assertEqual(hosts[0]["risk_level"], "MEDIUM")
 
 
+
+    def test_parses_bare_ipv6_host_address(self):
+        sample = """Nmap scan report for 2001:db8::25
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: required
+| smb-vuln-ms17-010:
+|   State: NOT VULNERABLE
+| smb-vuln-ms10-054:
+|   State: NOT VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 1)
+        self.assertEqual(hosts[0]["ip"], "2001:db8::25")
+        self.assertEqual(hosts[0]["hostname"], "2001:db8::25")
+
+    def test_parses_ipv6_address_in_parenthesized_hostname_label(self):
+        sample = """Nmap scan report for fileserver.example (2001:db8::26)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: required
+| smb-vuln-ms17-010:
+|   State: NOT VULNERABLE
+| smb-vuln-ms10-054:
+|   State: NOT VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 1)
+        self.assertEqual(hosts[0]["ip"], "2001:db8::26")
+        self.assertEqual(hosts[0]["hostname"], "fileserver.example")
+
 class CommandExecutionTests(unittest.TestCase):
     @patch.object(apex.subprocess, "run")
     def test_run_cmd_uses_safe_subprocess_options(self, mocked_run):
@@ -193,6 +224,37 @@ class ReportSafetyTests(unittest.TestCase):
         self.assertIn("Low-Risk Hosts", report)
         self.assertIn("assessment is incomplete", report.lower())
         self.assertEqual(report_mode, 0o600)
+
+
+
+
+    def test_indicator_finding_uses_high_report_severity(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.20)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+|   VULNERABLE:
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["risk_level"], "HIGH")
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report(hosts, "192.0.2.20", 0.1)).read_text(encoding="utf-8")
+        self.assertIn('<div class="finding-sev high">HIGH</div>', report)
+        self.assertNotIn('<div class="finding-sev info">INFO</div>', report)
+
+    def test_potential_indicator_finding_uses_medium_report_severity(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.21)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+|   State: LIKELY VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["risk_level"], "MEDIUM")
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report(hosts, "192.0.2.21", 0.1)).read_text(encoding="utf-8")
+        self.assertIn('<div class="finding-sev med">MED</div>', report)
+        self.assertNotIn('<div class="finding-sev info">INFO</div>', report)
 
     def test_log_file_is_created_with_private_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
