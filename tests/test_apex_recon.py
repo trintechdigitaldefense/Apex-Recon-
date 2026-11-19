@@ -31,6 +31,26 @@ class TargetValidationTests(unittest.TestCase):
                 self.assertFalse(apex.validate_network_target(value))
 
 
+class SMBParserTests(unittest.TestCase):
+    def test_parses_host_ports_signing_and_vulnerability(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.8)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: disabled
+| smb-vuln-ms17-010:
+|   VULNERABLE:
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 1)
+        host = hosts[0]
+        self.assertEqual(host["ip"], "192.0.2.8")
+        self.assertEqual(host["hostname"], "fileserver.example")
+        self.assertIn("445/tcp microsoft-ds", host["open_ports"])
+        self.assertEqual(host["signing"], "DISABLED")
+        self.assertTrue(host["vuln_ms17010"])
+        self.assertEqual(host["risk_level"], "CRITICAL")
+
+
 class CommandExecutionTests(unittest.TestCase):
     @patch.object(apex.subprocess, "run")
     def test_run_cmd_uses_safe_subprocess_options(self, mocked_run):
