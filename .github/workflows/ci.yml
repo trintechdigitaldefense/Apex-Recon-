@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - r1-source-recovery-stabilization
+      - r1-assessment-quality-hardening
   pull_request:
     branches:
       - main
