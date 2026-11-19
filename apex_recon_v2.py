@@ -52,7 +52,7 @@ def log(message):
     fd = os.open(LOG_FILE, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, "a", encoding="utf-8") as f:
-        f.write(f"[{timestamp}] {message}\\n")
+        f.write(f"[{timestamp}] {message}\n")
 
 def ts():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
