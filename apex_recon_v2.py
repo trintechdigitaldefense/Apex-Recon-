@@ -48,9 +48,11 @@ RISK_INFO   = f"{CYAN}[INFO]{RESET}"
 # Logging
 # ─────────────────────────────────────────────
 def log(message):
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"[{ts}] {message}\n")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fd = os.open(LOG_FILE, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\\n")
 
 def ts():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -281,7 +283,7 @@ def risk_badge(level):
 # HTML Report Generator — v2.0 Enterprise UI
 # ─────────────────────────────────────────────
 def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
-    filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S"))
+    filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     total    = len(hosts)
@@ -421,7 +423,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ApexRecon v{VERSION} — Audit Report</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<!-- Offline-safe report: use local fallback fonts only. -->
 <style>
   :root {{
     --bg:       #07080d;
@@ -597,7 +599,9 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
 </body>
 </html>"""
 
-    with open(filename, "w", encoding="utf-8") as f:
+    fd = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(html)
     return filename
 
