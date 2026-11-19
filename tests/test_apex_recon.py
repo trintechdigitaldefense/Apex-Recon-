@@ -137,11 +137,12 @@ class ReportSafetyTests(unittest.TestCase):
             with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
                 path = apex.generate_html_report([host], malicious, 0.1, module_name=malicious)
                 report = Path(path).read_text(encoding="utf-8")
+                report_mode = stat.S_IMODE(Path(path).stat().st_mode)
         self.assertNotIn('<img src=x', report)
         self.assertIn("&lt;img", report)
         self.assertNotIn('onerror="alert(1)"', report)
         self.assertNotIn("fonts.googleapis.com", report)
-        self.assertEqual(stat.S_IMODE(Path(path).stat().st_mode), 0o600)
+        self.assertEqual(report_mode, 0o600)
 
     def test_log_file_is_created_with_private_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
