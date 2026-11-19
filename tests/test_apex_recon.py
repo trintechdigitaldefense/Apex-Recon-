@@ -51,8 +51,8 @@ class SMBParserTests(unittest.TestCase):
         self.assertTrue(host["vuln_ms17010"])
         self.assertEqual(host["vuln_ms17010_status"], "INDICATOR")
         self.assertEqual(host["risk_level"], "HIGH")
-        self.assertIn("independently verify", host["findings"][0].lower())
-        self.assertNotIn("remote code execution", host["findings"][0].lower())
+        self.assertTrue(any("independently verify" in finding.lower() for finding in host["findings"]))
+        self.assertFalse(any("remote code execution" in finding.lower() for finding in host["findings"]))
 
     def test_does_not_flag_not_vulnerable_status(self):
         sample = """Nmap scan report for fileserver.example (192.0.2.9)
