@@ -49,7 +49,10 @@ class SMBParserTests(unittest.TestCase):
         self.assertIn("445/tcp microsoft-ds", host["open_ports"])
         self.assertEqual(host["signing"], "DISABLED")
         self.assertTrue(host["vuln_ms17010"])
-        self.assertEqual(host["risk_level"], "CRITICAL")
+        self.assertEqual(host["vuln_ms17010_status"], "INDICATOR")
+        self.assertEqual(host["risk_level"], "HIGH")
+        self.assertIn("independently verify", host["findings"][0].lower())
+        self.assertNotIn("remote code execution", host["findings"][0].lower())
 
     def test_does_not_flag_not_vulnerable_status(self):
         sample = """Nmap scan report for fileserver.example (192.0.2.9)
@@ -60,7 +63,38 @@ class SMBParserTests(unittest.TestCase):
         hosts = apex.parse_smb_output(sample)
         self.assertEqual(len(hosts), 1)
         self.assertFalse(hosts[0]["vuln_ms17010"])
+        self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_VULNERABLE")
         self.assertEqual(hosts[0]["risk_level"], "LOW")
+
+    def test_missing_vulnerability_script_result_is_not_reported_as_clean(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.10)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_REPORTED")
+        self.assertFalse(hosts[0]["vuln_ms17010"])
+        self.assertEqual(hosts[0]["risk_level"], "LOW")
+
+    def test_likely_vulnerable_is_only_a_potential_indicator(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.11)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+|   State: LIKELY VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["vuln_ms17010_status"], "POTENTIAL")
+        self.assertEqual(hosts[0]["risk_level"], "MEDIUM")
+
+    def test_disabled_signing_uses_medium_risk_classification(self):
+        sample = """Nmap scan report for fileserver.example (192.0.2.12)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: disabled
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["signing"], "DISABLED")
+        self.assertEqual(hosts[0]["risk_level"], "MEDIUM")
 
 
 class CommandExecutionTests(unittest.TestCase):
@@ -142,6 +176,8 @@ class ReportSafetyTests(unittest.TestCase):
         self.assertIn("&lt;img", report)
         self.assertNotIn('onerror="alert(1)"', report)
         self.assertNotIn("fonts.googleapis.com", report)
+        self.assertIn("NOT TESTED / NO RESULT", report)
+        self.assertIn("Low-Risk Hosts", report)
         self.assertEqual(report_mode, 0o600)
 
     def test_log_file_is_created_with_private_permissions(self):
