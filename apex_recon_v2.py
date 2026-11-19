@@ -184,9 +184,11 @@ def confirm_authorized_scope(target):
 def parse_smb_output(raw_output):
     hosts = []
     current_host = None
+    active_vuln_script = None
 
     for line in raw_output.splitlines():
         line = line.strip()
+        line_lower = line.lower()
 
         # New host block
         host_match = re.match(r"Nmap scan report for (.+)", line)
@@ -194,7 +196,7 @@ def parse_smb_output(raw_output):
             if current_host:
                 hosts.append(current_host)
             host_label = host_match.group(1)
-            ip_match = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", host_label)
+            ip_match = re.search(r"\\((\\d+\\.\\d+\\.\\d+\\.\\d+)\\)", host_label)
             ip = ip_match.group(1) if ip_match else host_label
             hostname = host_label.split(" ")[0] if "(" in host_label else ip
             current_host = {
@@ -209,63 +211,67 @@ def parse_smb_output(raw_output):
                 "risk_level": "LOW",
                 "findings": []
             }
+            active_vuln_script = None
             continue
 
         if not current_host:
             continue
 
+        # Track Nmap script context because script name and state are separate lines.
+        if "smb-vuln-ms17-010" in line_lower:
+            active_vuln_script = "ms17-010"
+        elif "smb-vuln-ms10-054" in line_lower:
+            active_vuln_script = "ms10-054"
+
         # Open ports
-        port_match = re.match(r"(\d+/tcp)\s+open\s+(.+)", line)
+        port_match = re.match(r"(\\d+/tcp)\\s+open\\s+(.+)", line)
         if port_match:
             current_host["open_ports"].append(f"{port_match.group(1)} {port_match.group(2)}")
 
         # OS Discovery
-        if "OS:" in line:
-            current_host["os"] = line.split("OS:")[-1].strip()
+        if "os:" in line_lower:
+            current_host["os"] = line.split("OS:", 1)[-1].strip()
 
         # SMB Signing
-        if "message_signing" in line:
-            if "disabled" in line.lower():
+        if "message_signing" in line_lower:
+            if "disabled" in line_lower:
                 current_host["signing"] = "DISABLED"
                 current_host["risk_level"] = "HIGH"
                 current_host["findings"].append("SMB Signing DISABLED — relay attacks possible (MEDIUM risk)")
-            elif "required" in line.lower():
+            elif "required" in line_lower:
                 current_host["signing"] = "Required"
             else:
                 current_host["signing"] = line.split(":")[-1].strip()
 
         # Shares
-        if re.match(r"\s*\\\\", "  " + line) or ("$" in line and "Disk" in line) or \
+        if re.match(r"\\s*\\\\\\\\", "  " + line) or ("$" in line and "Disk" in line) or \\
            ("IPC" in line) or ("ADMIN" in line) or ("SYSVOL" in line) or ("NETLOGON" in line):
-            share_match = re.search(r"(\\\\[^\s]+|[A-Z][A-Z0-9_\-$]+)\s+(Disk|IPC|Printer)?", line)
+            share_match = re.search(r"(\\\\\\\\[^\\s]+|[A-Z][A-Z0-9_\\-$]+)\\s+(Disk|IPC|Printer)?", line)
             if share_match and share_match.group(1) not in current_host["shares"]:
                 share = share_match.group(1).strip()
                 current_host["shares"].append(share)
                 if "$" not in share and "IPC" not in share:
                     current_host["findings"].append(f"Non-hidden share detected: {share} — verify permissions")
 
-        # EternalBlue
-        if "ms17-010" in line.lower():
-            if "vulnerable" in line.lower() or "VULNERABLE" in line:
+        # Vulnerability scripts often print the script header and status on different lines.
+        if active_vuln_script and re.search(r"\\bvulnerable\\b", line_lower):
+            is_vulnerable = not re.search(r"\\bnot\\s+vulnerable\\b", line_lower)
+            if is_vulnerable and active_vuln_script == "ms17-010":
                 current_host["vuln_ms17010"] = True
                 current_host["risk_level"] = "CRITICAL"
                 current_host["findings"].append("CRITICAL: MS17-010 (EternalBlue) — VULNERABLE to remote code execution!")
-
-        # MS10-054
-        if "ms10-054" in line.lower():
-            if "vulnerable" in line.lower():
+            elif is_vulnerable and active_vuln_script == "ms10-054":
                 current_host["vuln_ms10054"] = True
-                current_host["risk_level"] = "HIGH"
+                if current_host["risk_level"] != "CRITICAL":
+                    current_host["risk_level"] = "HIGH"
                 current_host["findings"].append("HIGH: MS10-054 SMB memory corruption vulnerability detected")
+            active_vuln_script = None
 
     if current_host:
         hosts.append(current_host)
 
     return hosts
 
-# ─────────────────────────────────────────────
-# Risk Badge helper
-# ─────────────────────────────────────────────
 def risk_badge(level):
     badges = {
         "CRITICAL": RISK_HIGH,
