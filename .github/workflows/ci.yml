@@ -1,4 +1,4 @@
-name: ApexRecon R1 validation
+name: ApexRecon validation
 
 on:
   push:
@@ -6,10 +6,13 @@ on:
       - main
       - r1-source-recovery-stabilization
       - r1-phase1-validation
+      - phase2-http-assessment
   pull_request:
     branches:
       - main
       - r1-source-recovery-stabilization
+      - r1-phase1-validation
+      - phase2-http-assessment
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile source and tests
-        run: python -m compileall -q apex_recon_v2.py tests
+        run: python -m compileall -q apex_recon_v2.py apex_web.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
@@ -50,4 +53,4 @@ jobs:
           sudo apt-get install -y nmap whois dnsutils curl
       - name: Verify dependency detection and safe startup imports
         run: |
-          python -c "import apex_recon_v2 as apex; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24')"
+          python -c "import apex_recon_v2 as apex; import apex_web; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"
