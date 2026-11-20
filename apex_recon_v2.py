@@ -495,7 +495,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   </div>"""
 
     no_hosts_msg = '' if host_cards_html else \
-        '<p style="color:var(--muted);font-family:var(--mono);padding:24px;">No live SMB hosts found on target range.</p>'
+        '<p style="color:var(--muted);font-family:var(--mono);padding:24px;">No hosts with open SMB ports were returned by Nmap for this authorized scope.</p>'
 
     # ── Full HTML ─────────────────────────────
     html = f"""<!DOCTYPE html>
@@ -863,7 +863,7 @@ def smb_auditor_module():
     hosts = parse_smb_output(out)
 
     if not hosts:
-        print(f"{YELLOW}[!] No SMB hosts detected on {target_ip}{RESET}")
+        print(f"{YELLOW}[!] No hosts with open SMB ports were returned for {target_ip}{RESET}")
     else:
         print(f"\n{RED}[!] Parsed Findings:{RESET}\n")
         for h in hosts:
@@ -897,10 +897,10 @@ def smb_auditor_module():
                 print(f"         {YELLOW}→ {finding}{RESET}")
             print()
 
-        # Generate HTML report
-        report_path = generate_html_report(hosts, target_ip, duration)
-        print(f"{GREEN}[+] HTML Audit Report saved: {BOLD}{report_path}{RESET}")
-        log(f"Report saved: {report_path}")
+    # Preserve the completed scan outcome even when no SMB hosts were returned.
+    report_path = generate_html_report(hosts, target_ip, duration)
+    print(f"{GREEN}[+] HTML Audit Report saved: {BOLD}{report_path}{RESET}")
+    log(f"Report saved: {report_path}")
 
     log(f"SMB Audit complete in {duration}s. Hosts found: {len(hosts)}")
     log(f"Raw output:\n{out}\n")
