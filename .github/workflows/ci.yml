@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - r1-source-recovery-stabilization
+      - r1-phase1-validation
   pull_request:
     branches:
       - main
+      - r1-source-recovery-stabilization
 
 permissions:
   contents: read
