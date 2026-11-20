@@ -19,7 +19,7 @@ from typing import Any
 USER_AGENT = "ApexRecon/2.1-dev (+authorized security assessment)"
 DEFAULT_TIMEOUT = 8.0
 MAX_TIMEOUT = 20.0
-MAX_RESPONSE_BYTES = 1024  # Read only a tiny bounded prefix; response bodies are not analysed.
+MAX_RESPONSE_BYTES = 1024  # Request a small byte range; response bodies are never consumed.
 
 
 class AssessmentInputError(ValueError):
@@ -78,6 +78,8 @@ def normalize_target_url(value: str) -> urllib.parse.SplitResult:
         raise AssessmentInputError("URL fragments are not sent to web servers")
     if port not in (None, 80, 443):
         raise AssessmentInputError("only standard HTTP (80) and HTTPS (443) ports are supported in this phase")
+    if (parsed.scheme.lower() == "http" and port not in (None, 80)) or (parsed.scheme.lower() == "https" and port not in (None, 443)):
+        raise AssessmentInputError("explicit port must match the URL scheme")
     try:
         hostname = parsed.hostname.encode("idna").decode("ascii")
     except (UnicodeError, AttributeError) as exc:

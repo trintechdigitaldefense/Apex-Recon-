@@ -34,6 +34,7 @@ class URLValidationTests(unittest.TestCase):
     def test_rejects_unsupported_schemes_and_malformed_inputs(self):
         for target in ("", "ftp://example.com", "javascript:alert(1)",
                        "https://user:pass@example.com", "https://example.com:8443",
+                       "http://example.com:443", "https://example.com:80",
                        "https://example.com/#fragment", "https://example.com:99999"):
             with self.subTest(target=target):
                 with self.assertRaises(web.AssessmentInputError):
