@@ -186,6 +186,37 @@ class NetworkDiscoveryTests(unittest.TestCase):
         self.assertEqual(apex.get_local_subnet(), ("192.168.4.0/23", "192.168.4.12"))
 
 
+class OSINTResolutionTests(unittest.TestCase):
+    def test_resolve_ipv4_literal_without_dns_lookup(self):
+        with patch.object(apex.socket, "getaddrinfo") as mocked_lookup:
+            self.assertEqual(apex.resolve_target_ip("192.0.2.5"), "192.0.2.5")
+            mocked_lookup.assert_not_called()
+
+    def test_resolve_ipv6_literal_without_dns_lookup(self):
+        with patch.object(apex.socket, "getaddrinfo") as mocked_lookup:
+            self.assertEqual(apex.resolve_target_ip("2001:db8::5"), "2001:db8::5")
+            mocked_lookup.assert_not_called()
+
+    @patch.object(apex.socket, "getaddrinfo")
+    def test_hostname_resolution_supports_ipv6_records(self, mocked_lookup):
+        mocked_lookup.return_value = [
+            (apex.socket.AF_INET6, apex.socket.SOCK_STREAM, 6, "", ("2001:db8::8", 0, 0, 0))
+        ]
+        self.assertEqual(apex.resolve_target_ip("host.example"), "2001:db8::8")
+
+    @patch.object(apex.socket, "getaddrinfo", side_effect=apex.socket.gaierror("not found"))
+    def test_unresolvable_hostname_returns_none(self, mocked_lookup):
+        self.assertIsNone(apex.resolve_target_ip("missing.example"))
+
+    def test_quick_port_scan_command_matches_top_twenty_label(self):
+        command = apex.build_osint_port_scan_command("example.com")
+        self.assertEqual(command, [
+            "nmap", "-Pn", "--open", "--top-ports", "20",
+            "--script", "banner", "example.com"
+        ])
+        self.assertNotIn("-F", command)
+
+
 class AuthorizationTests(unittest.TestCase):
     @patch("builtins.input", return_value="YES")
     def test_authorization_requires_exact_yes(self, mocked_input):
