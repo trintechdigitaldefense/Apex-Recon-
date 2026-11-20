@@ -34,9 +34,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Show unassessed hosts as a separate report summary count.
 - Preserve an HTML report when a completed SMB command returns output but no hosts with open SMB ports are parsed.
 
+### Phase 1 validation and review
+- Expanded the standard-library regression suite to cover IPv4/IPv6 OSINT resolution, bounded quick-port selection, multiple-host parser isolation, empty SMB results, and unassessed reporting.
+- Added a phone-only validation procedure for Android using the existing Ubuntu/Termux environment.
+- Added a documented R1 source review with remaining limitations and release gates.
+- Extended pull-request CI to validate changes targeting the R1 development branch.
+- Retained the distinction between mocked tests, platform validation, and authorized live-network accuracy testing.
+
 ### Validation
-- Added regression tests for evidence confidence, incomplete checks, potential indicators, IPv6 parsing, report wording and permissions.
-- Added standard-library unit tests and GitHub Actions matrix validation for Python 3.10–3.12.
+- Added regression tests for evidence confidence, incomplete checks, potential indicators, IPv6 parsing, report wording, time zone offsets and permissions.
+- GitHub Actions validates Python 3.10–3.12 and Linux dependency detection. These checks do not prove live scan accuracy or client readiness.
 
 ---
 
