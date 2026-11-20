@@ -37,6 +37,10 @@ The HTTP request may follow only one same-host, same-path redirect from HTTP to 
 - No shell commands, external scanning dependencies, crawling, or exploit payloads are used.
 - No background activity or scheduled scans are introduced.
 
+## Result interpretation
+
+When the HTTP probe follows the permitted upgrade to HTTPS, the result sets `http_redirected_to_https` to `true`, records `http_final_scheme` as `https`, and leaves `http_status` null rather than mislabelling the final HTTPS response code as an HTTP status. The final HTTPS response code is reported under `https_status`.
+
 ## Validation
 
 Run the isolated regression tests:
