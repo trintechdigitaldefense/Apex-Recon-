@@ -337,6 +337,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     critical = sum(1 for h in report_hosts if h["risk_level"] == "CRITICAL")
     high     = sum(1 for h in report_hosts if h["risk_level"] == "HIGH")
     clean    = sum(1 for h in report_hosts if h["risk_level"] == "LOW")
+    unassessed = sum(1 for h in report_hosts if h["risk_level"] == "UNASSESSED")
 
     # ── Build host cards ──────────────────────
     host_cards_html = ""
@@ -553,12 +554,14 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   .stat-card.s-crit::before   {{ background: var(--red); }}
   .stat-card.s-high::before   {{ background: var(--orange); }}
   .stat-card.s-clean::before  {{ background: var(--green); }}
+  .stat-card.s-unassessed::before {{ background: var(--muted); }}
   .stat-card.s-dur::before    {{ background: var(--gold); }}
   .stat-num {{ font-family: var(--display); font-size: 2.4rem; font-weight: 900; line-height: 1; margin-bottom: 6px; }}
   .stat-card.s-total .stat-num  {{ color: var(--cyan); }}
   .stat-card.s-crit  .stat-num  {{ color: var(--red); }}
   .stat-card.s-high  .stat-num  {{ color: var(--orange); }}
   .stat-card.s-clean .stat-num  {{ color: var(--green); }}
+  .stat-card.s-unassessed .stat-num {{ color: var(--muted); }}
   .stat-card.s-dur   .stat-num  {{ color: var(--gold); font-size: 1.6rem; }}
   .stat-label {{ font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; }}
   .stat-icon {{ position: absolute; bottom: 12px; right: 14px; font-size: 1.6rem; opacity: 0.12; }}
@@ -657,6 +660,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     <div class="stat-card s-crit"><div class="stat-num">{critical}</div><div class="stat-label">Critical Risk</div><div class="stat-icon">&#9888;</div></div>
     <div class="stat-card s-high"><div class="stat-num">{high}</div><div class="stat-label">High Risk</div><div class="stat-icon">&#9650;</div></div>
     <div class="stat-card s-clean"><div class="stat-num">{clean}</div><div class="stat-label">Low-Risk Hosts</div><div class="stat-icon">&#10003;</div></div>
+    <div class="stat-card s-unassessed"><div class="stat-num">{unassessed}</div><div class="stat-label">Unassessed Hosts</div><div class="stat-icon">?</div></div>
     <div class="stat-card s-dur"><div class="stat-num">{scan_duration}s</div><div class="stat-label">Scan Time</div><div class="stat-icon">&#9711;</div></div>
   </div>
 
