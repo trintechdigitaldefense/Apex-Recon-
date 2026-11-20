@@ -359,5 +359,69 @@ class ReportSafetyTests(unittest.TestCase):
             self.assertIn("private test record", log_path.read_text(encoding="utf-8"))
 
 
+class Phase1RegressionTests(unittest.TestCase):
+    def test_parser_state_does_not_leak_between_hosts(self):
+        sample = """Nmap scan report for first.example (192.0.2.50)
+445/tcp open microsoft-ds
+| smb-vuln-ms17-010:
+Nmap scan report for second.example (192.0.2.51)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: required
+| smb-vuln-ms10-054:
+|   State: NOT VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 2)
+        self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_REPORTED")
+        self.assertEqual(hosts[0]["vuln_ms10054_status"], "NOT_REPORTED")
+        self.assertEqual(hosts[1]["vuln_ms17010_status"], "NOT_REPORTED")
+        self.assertEqual(hosts[1]["vuln_ms10054_status"], "NOT_VULNERABLE")
+        self.assertEqual(hosts[1]["risk_level"], "UNASSESSED")
+
+    def test_ms10_054_positive_output_is_an_indicator_not_confirmation(self):
+        sample = """Nmap scan report for server.example (192.0.2.52)
+445/tcp open microsoft-ds
+| smb-vuln-ms10-054:
+|   State: VULNERABLE
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["vuln_ms10054_status"], "INDICATOR")
+        self.assertTrue(hosts[0]["vuln_ms10054"])
+        self.assertEqual(hosts[0]["risk_level"], "HIGH")
+        self.assertTrue(any("independently verify" in item.lower() for item in hosts[0]["findings"]))
+
+    def test_hostname_only_nmap_label_is_preserved(self):
+        sample = """Nmap scan report for fileserver.example
+445/tcp open microsoft-ds
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(len(hosts), 1)
+        self.assertEqual(hosts[0]["ip"], "fileserver.example")
+        self.assertEqual(hosts[0]["hostname"], "fileserver.example")
+        self.assertEqual(hosts[0]["risk_level"], "UNASSESSED")
+
+    def test_ipv6_network_validation_respects_range_limit(self):
+        self.assertTrue(apex.validate_network_target("2001:db8::/126"))
+        self.assertFalse(apex.validate_network_target("2001:db8::/0"))
+
+    def test_disabled_signing_with_missing_vulnerability_results_is_not_low_risk(self):
+        sample = """Nmap scan report for server.example (192.0.2.53)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: disabled
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["risk_level"], "MEDIUM")
+        self.assertEqual(hosts[0]["vuln_ms17010_status"], "NOT_REPORTED")
+        self.assertEqual(hosts[0]["vuln_ms10054_status"], "NOT_REPORTED")
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report(hosts, "192.0.2.53", 0.1)).read_text(encoding="utf-8")
+        self.assertIn("NOT TESTED / NO RESULT", report)
+        self.assertNotIn("Clean Hosts", report)
+        self.assertNotIn("remote code execution", report.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
