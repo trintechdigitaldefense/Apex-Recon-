@@ -261,6 +261,16 @@ class ReportSafetyTests(unittest.TestCase):
 
 
 
+    def test_empty_host_report_records_no_open_smb_hosts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report([], "192.0.2.40/32", 1.2)).read_text(encoding="utf-8")
+        self.assertIn("No hosts with open SMB ports were returned by Nmap", report)
+        self.assertIn("Hosts Found", report)
+        self.assertIn("Low-Risk Hosts", report)
+        self.assertIn("Unassessed Hosts", report)
+        self.assertNotIn("Clean Hosts", report)
+
     def test_report_timestamp_includes_local_timezone_offset(self):
         host = {
             "ip": "192.0.2.31", "hostname": "server.example", "os": "Unknown",
