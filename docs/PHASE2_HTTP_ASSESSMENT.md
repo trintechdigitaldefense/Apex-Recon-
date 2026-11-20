@@ -29,7 +29,7 @@ Missing headers are findings, not proof of an exploitable vulnerability. Header 
 - Embedded credentials and URL fragments are rejected.
 - Query strings are stripped before requests and excluded from evidence to reduce accidental transmission or disclosure of URL tokens.
 - At most two requests are made, with a bounded timeout and a small Range request.
-- Redirects must remain on the original hostname; HTTPS downgrade and cross-host redirects are blocked.
+- Only a same-host, same-path HTTP-to-HTTPS redirect is followed; other redirects, path/query changes, HTTPS-to-HTTP downgrades, and non-standard ports are blocked.
 - No shell commands, external scanning dependencies, crawling, or exploit payloads are used.
 - No background activity or scheduled scans are introduced.
 

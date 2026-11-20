@@ -38,21 +38,22 @@ class FetchResult:
 
 
 class SameHostRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Allow same-host redirects and HTTP->HTTPS upgrades, never HTTPS downgrades."""
+    """Allow only one same-host, same-path HTTP->HTTPS upgrade redirect."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         old = urllib.parse.urlsplit(req.full_url)
         new = urllib.parse.urlsplit(urllib.parse.urljoin(req.full_url, newurl))
         if (new.hostname or "").lower().rstrip(".") != (old.hostname or "").lower().rstrip("."):
             raise RedirectScopeError("cross-host redirect blocked")
-        if old.scheme == "https" and new.scheme != "https":
-            raise RedirectScopeError("HTTPS downgrade redirect blocked")
-        if new.scheme not in ("http", "https"):
-            raise RedirectScopeError("unsupported redirect scheme blocked")
-        if new.port not in (None, 80, 443):
-            raise RedirectScopeError("redirect to non-standard port blocked")
-        if (new.scheme == "http" and new.port not in (None, 80)) or (new.scheme == "https" and new.port not in (None, 443)):
-            raise RedirectScopeError("redirect port does not match scheme blocked")
+        # Permit only one exact-path HTTP -> HTTPS upgrade. Once HTTPS is
+        # reached, further redirects are blocked, bounding the assessment to
+        # at most two network requests and preventing path/query scope drift.
+        if old.scheme != "http" or new.scheme != "https":
+            raise RedirectScopeError("only HTTP-to-HTTPS upgrade redirects are permitted")
+        if new.port not in (None, 443):
+            raise RedirectScopeError("redirect to non-standard HTTPS port blocked")
+        if new.path != old.path or new.query:
+            raise RedirectScopeError("redirect path/query scope change blocked")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -225,8 +226,9 @@ def _inspect_cookies(headers: Any, secure_transport: bool) -> list[dict]:
 def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
     """Assess HTTP->HTTPS behavior and common response headers for one URL.
 
-    This performs at most two read-only GET requests, one to HTTP and one to
-    HTTPS. It does not crawl links, submit forms, probe common paths, or exploit.
+    This performs at most two read-only GET requests. A same-host, same-path
+    HTTP-to-HTTPS redirect counts as the HTTPS request; other redirects are
+    blocked. It does not crawl links, submit forms, probe common paths, or exploit.
     A caller must enforce written authorization before calling this function.
     """
     parsed = normalize_target_url(target)
@@ -242,20 +244,28 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
     authority = f"[{host}]" if ":" in host else host
     http_url = urllib.parse.urlunsplit(("http", authority, path, "", ""))
     https_url = urllib.parse.urlunsplit(("https", authority, path, "", ""))
-    results = {}
-    for scheme, url in (("http", http_url), ("https", https_url)):
+    try:
+        http_result = _fetch(http_url, timeout=timeout)
+    except (urllib.error.URLError, TimeoutError, socket.timeout, ssl.SSLError, OSError) as exc:
+        http_result = exc
+
+    # A permitted HTTP->HTTPS upgrade already supplies the HTTPS response.
+    # Otherwise make one direct HTTPS request. The redirect handler blocks
+    # further redirects, so the total request count cannot exceed two.
+    if isinstance(http_result, FetchResult) and urllib.parse.urlsplit(http_result.final_url).scheme.lower() == "https":
+        https_result = http_result
+    else:
         try:
-            results[scheme] = _fetch(url, timeout=timeout)
+            https_result = _fetch(https_url, timeout=timeout)
         except (urllib.error.URLError, TimeoutError, socket.timeout, ssl.SSLError, OSError) as exc:
-            results[scheme] = exc
+            https_result = exc
 
     findings = []
-    http_result = results["http"]
     if isinstance(http_result, FetchResult):
         final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower()
         if final_scheme == "https":
             findings.append(_finding("HTTPS_ENFORCEMENT", "INFO", "REDIRECTED",
-                                     f"HTTP request redirected to HTTPS (HTTP status {http_result.status}).",
+                                     f"HTTP request upgraded to HTTPS; final HTTPS response status {http_result.status}.",
                                      "Keep HTTP-to-HTTPS redirection enabled and avoid mixed-content resources."))
         else:
             findings.append(_finding("HTTPS_ENFORCEMENT", "MEDIUM", "NOT_ENFORCED",
@@ -266,7 +276,6 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
                                  f"HTTP endpoint could not be assessed: {type(http_result).__name__}.",
                                  "Confirm whether HTTP is intentionally disabled; verify HTTPS is available independently."))
 
-    https_result = results["https"]
     if isinstance(https_result, FetchResult):
         findings.append(_finding("HTTPS_ENDPOINT", "INFO", "RESPONDED",
                                  f"HTTPS endpoint returned HTTP status {https_result.status}.",

@@ -18,7 +18,7 @@ The Phase 2A tests use synthetic response headers and mocked fetch calls. They m
 - Only standard HTTP/HTTPS ports are accepted, and an explicitly supplied port must match the URL scheme.
 - IPv6 literal authorities remain bracketed when request URLs are constructed.
 - IPv6 literals remain bracketed when constructing request URLs.
-- Redirects cannot change hostname, downgrade HTTPS, or move to non-standard ports.
+- Only a same-host, same-path HTTP-to-HTTPS redirect is followed; cross-host, same-scheme, path/query-changing, HTTPS-downgrade, and non-standard-port redirects are blocked.
 - The assessment makes at most two GET requests with a bounded timeout.
 - Missing evidence is reported as missing/unavailable, not as a clean security result.
 - Cookie findings apply only to Set-Cookie headers observed in the single response.

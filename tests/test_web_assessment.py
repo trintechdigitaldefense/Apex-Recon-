@@ -74,9 +74,17 @@ class RedirectPolicyTests(unittest.TestCase):
 
     def test_blocks_redirect_to_non_standard_port(self):
         handler = web.SameHostRedirectHandler()
-        request = __import__("urllib.request").request.Request("https://example.com/")
+        request = __import__("urllib.request").request.Request("http://example.com/")
         with self.assertRaises(web.RedirectScopeError):
             handler.redirect_request(request, None, 302, "Found", Message(), "https://example.com:8443/")
+
+    def test_blocks_same_scheme_redirect_and_path_scope_drift(self):
+        handler = web.SameHostRedirectHandler()
+        request = __import__("urllib.request").request.Request("http://example.com/app")
+        with self.assertRaises(web.RedirectScopeError):
+            handler.redirect_request(request, None, 302, "Found", Message(), "http://example.com/app/")
+        with self.assertRaises(web.RedirectScopeError):
+            handler.redirect_request(request, None, 302, "Found", Message(), "https://example.com/other")
 
 
 class HeaderAssessmentTests(unittest.TestCase):
@@ -146,7 +154,6 @@ class AssessmentFlowTests(unittest.TestCase):
     @patch.object(web, "_fetch")
     def test_http_redirect_and_https_headers_are_assessed(self, mocked_fetch):
         mocked_fetch.side_effect = [
-            self.response(301, "https", {"Location": "https://example.com/login"}),
             self.response(200, "https", {
                 "Strict-Transport-Security": "max-age=31536000",
                 "Content-Security-Policy": "default-src 'self'",
@@ -155,8 +162,8 @@ class AssessmentFlowTests(unittest.TestCase):
             }),
         ]
         result = web.assess_url("https://example.com/login?access_token=secret")
-        self.assertEqual(mocked_fetch.call_count, 2)
-        self.assertEqual(result["http_status"], 301)
+        self.assertEqual(mocked_fetch.call_count, 1)
+        self.assertEqual(result["http_status"], 200)
         self.assertEqual(result["https_status"], 200)
         self.assertNotIn("access_token", str(result))
         self.assertEqual(next(f for f in result["findings"] if f["check"] == "HTTPS_ENFORCEMENT")["status"], "REDIRECTED")
@@ -174,7 +181,7 @@ class AssessmentFlowTests(unittest.TestCase):
     @patch.object(web, "_fetch")
     def test_unavailable_https_is_not_reported_as_secure(self, mocked_fetch):
         mocked_fetch.side_effect = [
-            self.response(301, "https"),
+            self.response(200, "http"),
             ssl.SSLError("certificate verify failed"),
         ]
         result = web.assess_url("example.com")
@@ -185,7 +192,7 @@ class AssessmentFlowTests(unittest.TestCase):
     @patch.object(web, "_fetch")
     def test_http_and_https_fetch_targets_are_same_host_and_path(self, mocked_fetch):
         mocked_fetch.side_effect = [
-            self.response(301, "https"),
+            self.response(200, "http"),
             self.response(200, "https"),
         ]
         web.assess_url("https://example.com/app")
@@ -195,7 +202,7 @@ class AssessmentFlowTests(unittest.TestCase):
     @patch.object(web, "_fetch")
     def test_server_disclosure_is_low_severity(self, mocked_fetch):
         mocked_fetch.side_effect = [
-            self.response(301, "https"),
+            self.response(200, "http"),
             self.response(200, "https", {"Server": "Example/1.2", "X-Powered-By": "PHP/8.2"}),
         ]
         result = web.assess_url("example.com")
@@ -216,13 +223,13 @@ class AssessmentFlowTests(unittest.TestCase):
 
     @patch.object(web, "_fetch")
     def test_only_two_requests_are_made(self, mocked_fetch):
-        mocked_fetch.side_effect = [self.response(301, "https"), self.response(200, "https")]
+        mocked_fetch.side_effect = [self.response(200, "http"), self.response(200, "https")]
         web.assess_url("example.com")
         self.assertEqual(mocked_fetch.call_count, 2)
 
     @patch.object(web, "_fetch")
     def test_result_has_explicit_scope_limitations(self, mocked_fetch):
-        mocked_fetch.side_effect = [self.response(301, "https"), self.response(200, "https")]
+        mocked_fetch.side_effect = [self.response(200, "http"), self.response(200, "https")]
         result = web.assess_url("example.com")
         self.assertEqual(result["schema_version"], "1.0")
         self.assertGreaterEqual(len(result["limitations"]), 4)
