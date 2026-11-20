@@ -84,7 +84,8 @@ def normalize_target_url(value: str) -> urllib.parse.SplitResult:
         raise AssessmentInputError("hostname is invalid") from exc
     path = parsed.path or "/"
     # Query strings are deliberately omitted to avoid sending URL tokens/secrets.
-    return urllib.parse.SplitResult(parsed.scheme.lower(), hostname, path, "", "")
+    authority = f"[{hostname}]" if ":" in hostname else hostname
+    return urllib.parse.SplitResult(parsed.scheme.lower(), authority, path, "", "")
 
 
 def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
