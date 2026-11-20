@@ -2,6 +2,8 @@ import importlib.util
 import tempfile
 import stat
 import unittest
+import re
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -258,6 +260,57 @@ class ReportSafetyTests(unittest.TestCase):
 
 
 
+
+    def test_report_timestamp_includes_local_timezone_offset(self):
+        host = {
+            "ip": "192.0.2.31", "hostname": "server.example", "os": "Unknown",
+            "shares": [], "signing": "Required", "vuln_ms17010": False,
+            "vuln_ms10054": False, "vuln_ms17010_status": "NOT_VULNERABLE",
+            "vuln_ms10054_status": "NOT_VULNERABLE", "open_ports": [],
+            "risk_level": "LOW", "findings": [],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report([host], "192.0.2.31", 0.1)).read_text(encoding="utf-8")
+        match = re.search(r"Generated: ([0-9T:+-]+)", report)
+        self.assertIsNotNone(match)
+        timestamp = datetime.fromisoformat(match.group(1))
+        self.assertIsNotNone(timestamp.utcoffset())
+        self.assertNotIn(" UTC", report)
+
+    def test_report_counts_unassessed_hosts_separately(self):
+        host = {
+            "ip": "192.0.2.32", "hostname": "server.example", "os": "Unknown",
+            "shares": [], "signing": "Unknown", "vuln_ms17010": False,
+            "vuln_ms10054": False, "open_ports": [], "risk_level": "LOW",
+            "findings": [],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report([host], "192.0.2.32", 0.1)).read_text(encoding="utf-8")
+        self.assertIn("Unassessed Hosts", report)
+        self.assertIn("Low-Risk Hosts", report)
+        self.assertIn("NOT TESTED / NO RESULT", report)
+        self.assertNotIn("Clean Hosts", report)
+
+    def test_report_preserves_indicator_and_missing_check_distinction(self):
+        sample = """Nmap scan report for server.example (192.0.2.33)
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: required
+| smb-vuln-ms17-010:
+|   VULNERABLE:
+| smb-vuln-ms10-054:
+"""
+        hosts = apex.parse_smb_output(sample)
+        self.assertEqual(hosts[0]["risk_level"], "HIGH")
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(apex, "REPORT_FILE", str(Path(directory) / "report_{}.html")):
+                report = Path(apex.generate_html_report(hosts, "192.0.2.33", 0.1)).read_text(encoding="utf-8")
+        self.assertIn("INDICATOR", report)
+        self.assertIn("NOT TESTED / NO RESULT", report)
+        self.assertIn("independently verify", report.lower())
+        self.assertNotIn("remote code execution", report.lower())
 
     def test_indicator_finding_uses_high_report_severity(self):
         sample = """Nmap scan report for fileserver.example (192.0.2.20)
