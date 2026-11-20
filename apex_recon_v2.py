@@ -184,6 +184,17 @@ def confirm_authorized_scope(target):
 # ─────────────────────────────────────────────
 # SMB Parser: Extract structured data from nmap output
 # ─────────────────────────────────────────────
+def finalize_smb_host(host):
+    """Do not label a host low-risk when required SMB checks produced no result."""
+    if host.get("risk_level", "UNASSESSED") == "LOW" and (
+        host.get("signing", "Unknown") == "Unknown"
+        or host.get("vuln_ms17010_status", "NOT_REPORTED") == "NOT_REPORTED"
+        or host.get("vuln_ms10054_status", "NOT_REPORTED") == "NOT_REPORTED"
+    ):
+        host["risk_level"] = "UNASSESSED"
+    return host
+
+
 def parse_smb_output(raw_output):
     hosts = []
     current_host = None
@@ -196,11 +207,23 @@ def parse_smb_output(raw_output):
         host_match = re.match(r"Nmap scan report for (.+)", line)
         if host_match:
             if current_host:
-                hosts.append(current_host)
-            host_label = host_match.group(1)
-            ip_match = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)", host_label)
-            ip = ip_match.group(1) if ip_match else host_label
-            hostname = host_label.split(" ")[0] if "(" in host_label else ip
+                hosts.append(finalize_smb_host(current_host))
+            host_label = host_match.group(1).strip()
+            # Nmap emits either a bare address or "hostname (address)".
+            # Parse both IP families with ipaddress rather than an IPv4-only regex.
+            hostname = host_label
+            address_candidate = host_label
+            if host_label.endswith(")") and "(" in host_label:
+                hostname, address_candidate = host_label.rsplit("(", 1)
+                hostname = hostname.strip() or address_candidate[:-1].strip()
+                address_candidate = address_candidate[:-1].strip()
+            address_candidate = address_candidate.strip().strip("[]")
+            try:
+                ip = str(ipaddress.ip_address(address_candidate))
+            except ValueError:
+                # Preserve hostname-only Nmap labels when no numeric address is present.
+                ip = host_label
+                hostname = host_label
             current_host = {
                 "ip": ip,
                 "hostname": hostname,
@@ -209,6 +232,8 @@ def parse_smb_output(raw_output):
                 "signing": "Unknown",
                 "vuln_ms17010": False,
                 "vuln_ms10054": False,
+                "vuln_ms17010_status": "NOT_REPORTED",
+                "vuln_ms10054_status": "NOT_REPORTED",
                 "open_ports": [],
                 "risk_level": "LOW",
                 "findings": []
@@ -234,8 +259,9 @@ def parse_smb_output(raw_output):
         if "message_signing" in line_lower:
             if "disabled" in line_lower:
                 current_host["signing"] = "DISABLED"
-                current_host["risk_level"] = "HIGH"
-                current_host["findings"].append("SMB Signing DISABLED — relay attacks possible (MEDIUM risk)")
+                if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                    current_host["risk_level"] = "MEDIUM"
+                current_host["findings"].append("SMB signing is disabled — relay exposure may be possible; verify configuration and relay mitigations (MEDIUM risk)")
             elif "required" in line_lower:
                 current_host["signing"] = "Required"
             else:
@@ -248,23 +274,39 @@ def parse_smb_output(raw_output):
                 share = share_match.group(1).strip()
                 current_host["shares"].append(share)
                 if "$" not in share and "IPC" not in share:
+                    if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                        current_host["risk_level"] = "MEDIUM"
                     current_host["findings"].append(f"Non-hidden share detected: {share} — verify permissions")
 
-        if active_vuln_script and re.search(r"\bvulnerable\b", line_lower):
-            is_vulnerable = not re.search(r"\bnot\s+vulnerable\b", line_lower)
-            if is_vulnerable and active_vuln_script == "ms17-010":
-                current_host["vuln_ms17010"] = True
-                current_host["risk_level"] = "CRITICAL"
-                current_host["findings"].append("CRITICAL: MS17-010 (EternalBlue) — VULNERABLE to remote code execution!")
-            elif is_vulnerable and active_vuln_script == "ms10-054":
-                current_host["vuln_ms10054"] = True
-                if current_host["risk_level"] != "CRITICAL":
+        if active_vuln_script:
+            status = None
+            if re.search(r"\bnot\s+vulnerable\b", line_lower):
+                status = "NOT_VULNERABLE"
+            elif re.search(r"\b(likely|possibly|potentially)\s+vulnerable\b", line_lower):
+                status = "POTENTIAL"
+            elif re.search(r"\bvulnerable\b", line_lower):
+                status = "INDICATOR"
+            if status:
+                script = active_vuln_script
+                status_key = "vuln_ms17010_status" if script == "ms17-010" else "vuln_ms10054_status"
+                flag_key = "vuln_ms17010" if script == "ms17-010" else "vuln_ms10054"
+                current_host[status_key] = status
+                current_host[flag_key] = status in ("INDICATOR", "POTENTIAL")
+                if status == "INDICATOR":
                     current_host["risk_level"] = "HIGH"
-                current_host["findings"].append("HIGH: MS10-054 SMB memory corruption vulnerability detected")
-            active_vuln_script = None
+                    current_host["findings"].append(
+                        f"{script.upper()} vulnerability indicator reported by Nmap NSE; independently verify before treating it as confirmed"
+                    )
+                elif status == "POTENTIAL":
+                    if current_host["risk_level"] not in ("HIGH", "CRITICAL"):
+                        current_host["risk_level"] = "MEDIUM"
+                    current_host["findings"].append(
+                        f"{script.upper()} potential vulnerability indicator reported by Nmap NSE; further validation required"
+                    )
+                active_vuln_script = None
 
     if current_host:
-        hosts.append(current_host)
+        hosts.append(finalize_smb_host(current_host))
 
     return hosts
 
@@ -275,6 +317,7 @@ def risk_badge(level):
         "MED":      RISK_MED,
         "MEDIUM":   RISK_MED,
         "LOW":      RISK_LOW,
+        "UNASSESSED": RISK_INFO,
         "INFO":     RISK_INFO,
     }
     return badges.get(level.upper(), RISK_INFO)
@@ -284,25 +327,38 @@ def risk_badge(level):
 # ─────────────────────────────────────────────
 def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     filename = REPORT_FILE.format(datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
 
-    total    = len(hosts)
-    critical = sum(1 for h in hosts if h["risk_level"] == "CRITICAL")
-    high     = sum(1 for h in hosts if h["risk_level"] == "HIGH")
-    clean    = sum(1 for h in hosts if h["risk_level"] == "LOW")
+    # Revalidate report risk independently of the parser so callers cannot
+    # accidentally label incomplete evidence as LOW.
+    report_hosts = [finalize_smb_host(dict(h)) for h in hosts]
+
+    total    = len(report_hosts)
+    critical = sum(1 for h in report_hosts if h["risk_level"] == "CRITICAL")
+    high     = sum(1 for h in report_hosts if h["risk_level"] == "HIGH")
+    clean    = sum(1 for h in report_hosts if h["risk_level"] == "LOW")
 
     # ── Build host cards ──────────────────────
     host_cards_html = ""
-    for i, h in enumerate(hosts):
+    for i, h in enumerate(report_hosts):
         rl = h["risk_level"].upper()
-        risk_class = rl.lower() if rl in ("CRITICAL","HIGH","MEDIUM","LOW") else "low"
+        risk_class = rl.lower() if rl in ("CRITICAL","HIGH","MEDIUM","LOW","UNASSESSED") else "unassessed"
         pill_class = risk_class
 
         # Vuln badges
-        vuln_eb = '⚠ VULNERABLE' if h["vuln_ms17010"] else '✓ Clean'
-        vuln_eb_cls = 'vulnerable' if h["vuln_ms17010"] else 'clean'
-        vuln_ms = '⚠ VULNERABLE' if h["vuln_ms10054"] else '✓ Clean'
-        vuln_ms_cls = 'vulnerable' if h["vuln_ms10054"] else 'clean'
+        def vuln_display(status, legacy_flag):
+            if status == "INDICATOR":
+                return "⚠ INDICATOR", "vulnerable"
+            if status == "POTENTIAL":
+                return "⚠ POTENTIAL", "warn"
+            if status == "NOT_VULNERABLE":
+                return "✓ NOT VULNERABLE", "clean"
+            if status == "NOT_REPORTED":
+                return "NOT TESTED / NO RESULT", "warn"
+            return ("⚠ INDICATOR", "vulnerable") if legacy_flag else ("NOT TESTED / NO RESULT", "warn")
+
+        vuln_eb, vuln_eb_cls = vuln_display(h.get("vuln_ms17010_status", "NOT_REPORTED"), h["vuln_ms17010"])
+        vuln_ms, vuln_ms_cls = vuln_display(h.get("vuln_ms10054_status", "NOT_REPORTED"), h["vuln_ms10054"])
 
         signing_val = h.get("signing", "Unknown")
         if signing_val == "DISABLED":
@@ -337,17 +393,35 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
 
         # Findings
         findings_html = ""
+        if rl == "UNASSESSED":
+            findings_html += '''
+            <div class="finding-item">
+              <div class="finding-sev info">INFO</div>
+              <div>
+                <div class="finding-text">Assessment is incomplete: one or more required SMB checks returned no result</div>
+                <div class="finding-rec">→ Complete the missing checks before treating this host as low risk.</div>
+              </div>
+            </div>'''
         for f in h["findings"]:
-            fu = f.upper()
-            if "CRITICAL" in fu:
+            fu = str(f).upper()
+            # Map the parser's explicit evidence wording before generic text rules.
+            # POTENTIAL must be checked before INDICATOR because both contain
+            # the phrase "VULNERABILITY INDICATOR".
+            if "POTENTIAL VULNERABILITY INDICATOR" in fu:
+                sev, sev_cls = "MED", "med"
+                rec = "→ Validate the potential indicator with additional evidence before prioritizing remediation."
+            elif "VULNERABILITY INDICATOR" in fu:
+                sev, sev_cls = "HIGH", "high"
+                rec = "→ Independently verify the Nmap NSE indicator before treating it as confirmed."
+            elif "CRITICAL" in fu:
                 sev, sev_cls = "CRIT", "crit"
                 rec = "→ Patch immediately and isolate host from network."
             elif "HIGH" in fu:
                 sev, sev_cls = "HIGH", "high"
                 rec = "→ Remediate within 24 hours. Review access controls."
             elif "SIGNING" in fu or "RELAY" in fu:
-                sev, sev_cls = "HIGH", "high"
-                rec = "→ Enable SMB signing via Group Policy immediately."
+                sev, sev_cls = "MED", "med"
+                rec = "→ Require SMB signing where supported and review relay mitigations."
             elif "SHARE" in fu or "NON-HIDDEN" in fu:
                 sev, sev_cls = "MED", "med"
                 rec = "→ Audit share permissions. Apply least-privilege access."
@@ -363,12 +437,18 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
               </div>
             </div>'''
         if not findings_html:
-            findings_html = '''
+            if rl == "UNASSESSED":
+                empty_finding = "No positive findings were parsed; assessment is incomplete"
+                empty_recommendation = "→ Complete the missing checks before treating this host as low risk."
+            else:
+                empty_finding = "No positive findings detected by the completed checks"
+                empty_recommendation = "→ Review the evidence and maintain the current patch level."
+            findings_html = f'''
             <div class="finding-item">
               <div class="finding-sev info">INFO</div>
               <div>
-                <div class="finding-text">No critical findings detected on this host</div>
-                <div class="finding-rec">→ Maintain current patch level. Continue monitoring.</div>
+                <div class="finding-text">{empty_finding}</div>
+                <div class="finding-rec">{empty_recommendation}</div>
               </div>
             </div>'''
 
@@ -491,6 +571,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   .host-card.risk-high::after     {{ background: var(--orange); }}
   .host-card.risk-medium::after   {{ background: var(--gold); }}
   .host-card.risk-low::after      {{ background: var(--green); }}
+  .host-card.risk-unassessed::after {{ background: var(--muted); }}
   .host-card-header {{ display: flex; align-items: center; gap: 16px; padding: 16px 20px 14px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }}
   .host-ip {{ font-family: var(--display); font-size: 1.1rem; font-weight: 700; color: var(--cyan); letter-spacing: 1px; }}
   .host-name {{ font-family: var(--mono); font-size: 12px; color: var(--muted); }}
@@ -500,6 +581,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
   .risk-pill.high     {{ background: var(--orange); color: #000; }}
   .risk-pill.medium   {{ background: var(--gold);   color: #000; }}
   .risk-pill.low      {{ background: var(--green);  color: #000; }}
+  .risk-pill.unassessed {{ background: var(--muted); color: #fff; }}
   .host-card-body {{ display: grid; grid-template-columns: 1fr 1fr; }}
   .host-section {{ padding: 16px 20px 16px 24px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }}
   .host-section:nth-child(even) {{ border-right: none; }}
@@ -574,7 +656,7 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
     <div class="stat-card s-total"><div class="stat-num">{total}</div><div class="stat-label">Hosts Found</div><div class="stat-icon">&#9672;</div></div>
     <div class="stat-card s-crit"><div class="stat-num">{critical}</div><div class="stat-label">Critical Risk</div><div class="stat-icon">&#9888;</div></div>
     <div class="stat-card s-high"><div class="stat-num">{high}</div><div class="stat-label">High Risk</div><div class="stat-icon">&#9650;</div></div>
-    <div class="stat-card s-clean"><div class="stat-num">{clean}</div><div class="stat-label">Clean Hosts</div><div class="stat-icon">&#10003;</div></div>
+    <div class="stat-card s-clean"><div class="stat-num">{clean}</div><div class="stat-label">Low-Risk Hosts</div><div class="stat-icon">&#10003;</div></div>
     <div class="stat-card s-dur"><div class="stat-num">{scan_duration}s</div><div class="stat-label">Scan Time</div><div class="stat-icon">&#9711;</div></div>
   </div>
 
@@ -759,8 +841,26 @@ def smb_auditor_module():
             print(f"  {badge} {CYAN}{h['ip']}{RESET}  ({h['hostname']})  OS: {WHITE}{h['os']}{RESET}")
             if h["signing"] != "Unknown":
                 print(f"         SMB Signing: {WHITE}{h['signing']}{RESET}")
-            if h["vuln_ms17010"]:
-                print(f"         {RED}⚠ EternalBlue (MS17-010) — VULNERABLE{RESET}")
+            ms17_status = h.get("vuln_ms17010_status", "NOT_REPORTED")
+            if ms17_status == "INDICATOR":
+                print(f"         {RED}⚠ MS17-010 — Nmap NSE INDICATOR; independent verification required{RESET}")
+            elif ms17_status == "POTENTIAL":
+                print(f"         {YELLOW}⚠ MS17-010 — POTENTIAL indicator; further validation required{RESET}")
+            elif ms17_status == "NOT_VULNERABLE":
+                print(f"         {GREEN}MS17-010 — Nmap NSE reported NOT VULNERABLE{RESET}")
+            else:
+                print(f"         {YELLOW}MS17-010 — NOT TESTED / NO RESULT{RESET}")
+
+            ms10_status = h.get("vuln_ms10054_status", "NOT_REPORTED")
+            if ms10_status == "INDICATOR":
+                print(f"         {RED}⚠ MS10-054 — Nmap NSE INDICATOR; independent verification required{RESET}")
+            elif ms10_status == "POTENTIAL":
+                print(f"         {YELLOW}⚠ MS10-054 — POTENTIAL indicator; further validation required{RESET}")
+            elif ms10_status == "NOT_VULNERABLE":
+                print(f"         {GREEN}MS10-054 — Nmap NSE reported NOT VULNERABLE{RESET}")
+            else:
+                print(f"         {YELLOW}MS10-054 — NOT TESTED / NO RESULT{RESET}")
+
             if h["shares"]:
                 print(f"         Shares: {WHITE}{', '.join(h['shares'])}{RESET}")
             for finding in h["findings"]:
