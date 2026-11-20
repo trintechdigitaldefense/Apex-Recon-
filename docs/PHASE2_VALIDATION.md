@@ -15,7 +15,8 @@ The Phase 2A tests use synthetic response headers and mocked fetch calls. They m
 
 - A bare hostname defaults to HTTPS.
 - Query strings are stripped before either request and are not copied into assessment output.
-- Only standard HTTP/HTTPS ports are accepted.
+- Only standard HTTP/HTTPS ports are accepted, and an explicitly supplied port must match the URL scheme.
+- IPv6 literal authorities remain bracketed when request URLs are constructed.
 - IPv6 literals remain bracketed when constructing request URLs.
 - Redirects cannot change hostname, downgrade HTTPS, or move to non-standard ports.
 - The assessment makes at most two GET requests with a bounded timeout.
