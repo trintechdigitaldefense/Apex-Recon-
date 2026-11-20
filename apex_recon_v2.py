@@ -687,6 +687,36 @@ def generate_html_report(hosts, target, scan_duration, module_name="SMB Audit"):
         f.write(html)
     return filename
 
+def resolve_target_ip(target):
+    """Resolve a validated IP/hostname to one address, supporting IPv4 and IPv6."""
+    value = str(target).strip()
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        pass
+    try:
+        records = socket.getaddrinfo(
+            value, None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM
+        )
+    except (socket.gaierror, OSError, ValueError):
+        return None
+    for family, _socktype, _proto, _canonname, sockaddr in records:
+        if family in (socket.AF_INET, socket.AF_INET6):
+            try:
+                return str(ipaddress.ip_address(sockaddr[0]))
+            except (ValueError, IndexError, TypeError):
+                continue
+    return None
+
+
+def build_osint_port_scan_command(target):
+    """Build the bounded, clearly labelled quick external port-scan command."""
+    return [
+        "nmap", "-Pn", "--open", "--top-ports", "20",
+        "--script", "banner", target
+    ]
+
+
 # ─────────────────────────────────────────────
 # MODULE 1: OSINT — External Footprinting
 # ─────────────────────────────────────────────
@@ -707,7 +737,7 @@ def osint_module():
 
     # ── DNS Records ──────────────────────────────
     print(f"\n{CYAN}[+] Resolving DNS records...{RESET}")
-    for rtype in ["A", "MX", "NS", "TXT", "CNAME"]:
+    for rtype in ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "CAA"]:
         out, err = run_cmd(["dig", "+short", rtype, domain])
         if out:
             results[f"DNS_{rtype}"] = out.splitlines()
@@ -732,8 +762,8 @@ def osint_module():
 
     # ── IP Geolocation ───────────────────────────
     print(f"\n{CYAN}[+] Geolocating IP...{RESET}")
-    try:
-        ip = socket.gethostbyname(domain)
+    ip = resolve_target_ip(domain)
+    if ip:
         out, _ = run_cmd(["curl", "-s", f"https://ipinfo.io/{ip}/json"], timeout=15)
         if out:
             try:
@@ -742,19 +772,15 @@ def osint_module():
                 for k in ["ip", "city", "region", "country", "org", "timezone"]:
                     if k in geo:
                         print(f"  {GREY}{k:12}{RESET} → {WHITE}{geo[k]}{RESET}")
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 print(f"  {GREY}Raw: {out[:200]}{RESET}")
-    except Exception as e:
-        print(f"  {RED}Could not resolve IP: {e}{RESET}")
+    else:
+        print(f"  {YELLOW}[!] No IP address could be resolved for geolocation.{RESET}")
 
     # ── Open Ports (Quick Top 20) ────────────────
     print(f"\n{CYAN}[+] Scanning common external ports (top 20)...{RESET}")
     log(f"OSINT port scan on {domain}")
-    out, err = run_cmd([
-        "nmap", "-Pn", "--open", "-F",
-        "--script", "banner",
-        domain
-    ], timeout=90)
+    out, err = run_cmd(build_osint_port_scan_command(domain), timeout=90)
 
     if "NOT_FOUND" in err:
         print(f"  {RED}nmap not installed — apt-get install nmap{RESET}")
