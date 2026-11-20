@@ -29,6 +29,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Parse both IPv4 and IPv6 Nmap host labels.
 - Use the actual local timezone offset in report timestamps.
 - Rename the summary count from "Clean Hosts" to "Low-Risk Hosts".
+- Support IPv4 and IPv6 address resolution for the OSINT geolocation lookup.
+- Match the external quick-port-scan description to the actual Nmap scope by selecting the top 20 ports.
+- Show unassessed hosts as a separate report summary count.
 
 ### Validation
 - Added regression tests for evidence confidence, incomplete checks, potential indicators, IPv6 parsing, report wording and permissions.
