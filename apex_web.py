@@ -293,12 +293,17 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
                                  f"HTTPS endpoint could not be assessed: {type(https_result).__name__}.",
                                  "Verify DNS, network reachability, certificate validity, and HTTPS listener configuration. TLS details are assessed in a separate phase."))
 
+    http_final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower() if isinstance(http_result, FetchResult) else None
+    http_redirected_to_https = http_final_scheme == "https"
+
     return {
         "schema_version": "1.0",
         "module": "HTTP Security Assessment",
         "target": host,
         "path": path,
-        "http_status": http_result.status if isinstance(http_result, FetchResult) else None,
+        "http_status": http_result.status if isinstance(http_result, FetchResult) and not http_redirected_to_https else None,
+        "http_final_scheme": http_final_scheme,
+        "http_redirected_to_https": http_redirected_to_https,
         "https_status": https_result.status if isinstance(https_result, FetchResult) else None,
         "http_final_url": _safe_url(http_result.final_url) if isinstance(http_result, FetchResult) else None,
         "https_final_url": _safe_url(https_result.final_url) if isinstance(https_result, FetchResult) else None,

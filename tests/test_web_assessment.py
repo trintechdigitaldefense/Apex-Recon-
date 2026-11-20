@@ -163,7 +163,9 @@ class AssessmentFlowTests(unittest.TestCase):
         ]
         result = web.assess_url("https://example.com/login?access_token=secret")
         self.assertEqual(mocked_fetch.call_count, 1)
-        self.assertEqual(result["http_status"], 200)
+        self.assertIsNone(result["http_status"])
+        self.assertEqual(result["http_final_scheme"], "https")
+        self.assertTrue(result["http_redirected_to_https"])
         self.assertEqual(result["https_status"], 200)
         self.assertNotIn("access_token", str(result))
         self.assertEqual(next(f for f in result["findings"] if f["check"] == "HTTPS_ENFORCEMENT")["status"], "REDIRECTED")
