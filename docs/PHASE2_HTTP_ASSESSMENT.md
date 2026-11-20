@@ -22,6 +22,10 @@ It does not crawl links, discover common paths, submit forms, authenticate, fuzz
 
 Missing headers are findings, not proof of an exploitable vulnerability. Header presence does not prove that a policy is correct or effective. No response cookie does not prove that the application never uses cookies.
 
+## Request and redirect bound
+
+The HTTP request may follow only one same-host, same-path redirect from HTTP to HTTPS. Once HTTPS is reached, any further redirect is blocked. If HTTP does not reach HTTPS, the engine makes one direct HTTPS request. This keeps the assessment to no more than two network requests and prevents redirect-driven hostname, path, query-string, scheme, or port expansion.
+
 ## Safety controls
 
 - The caller must obtain written authorization for the exact target before invoking the assessment.
