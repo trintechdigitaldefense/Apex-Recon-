@@ -31,7 +31,7 @@ A separate standard-library engine in `apex_web.py` performs up to two read-only
 - Secure, HttpOnly and SameSite attributes on observed cookies
 - Server and X-Powered-By disclosure
 
-This milestone is not yet integrated into the interactive menu or client report. It does not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. TLS certificate/protocol checks and CMS identification are later milestones.
+Milestone 2A is integrated into the interactive CLI as menu option 3 and writes a dedicated, self-contained HTML assessment report. The engine does not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. TLS certificate/protocol checks and CMS identification are later milestones. The integration is under review in the Phase 2B draft PR.
 
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
@@ -75,7 +75,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; only the isolated HTTP-header milestone is present in this branch.
-- HTTP milestone is not yet integrated into the CLI or report generator.
+- The HTTP integration/report work is in a separate draft PR and has not been merged or phone-validated.
 - TLS certificate, protocol and cipher assessment is not included yet.
 - CMS fingerprinting and technology identification are not included yet.
 - Native PDF export is not implemented; the current recovered report is HTML.
