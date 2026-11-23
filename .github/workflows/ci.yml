@@ -7,12 +7,14 @@ on:
       - r1-source-recovery-stabilization
       - r1-phase1-validation
       - phase2-http-assessment
+      - phase2b-http-cli-report
   pull_request:
     branches:
       - main
       - r1-source-recovery-stabilization
       - r1-phase1-validation
       - phase2-http-assessment
+      - phase2b-http-cli-report
 
 permissions:
   contents: read
