@@ -321,3 +321,103 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
 def _safe_url(url: str) -> str:
     parsed = urllib.parse.urlsplit(url)
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", "", ""))
+
+
+
+def generate_html_report(result: dict, duration_seconds: float) -> str:
+    """Write a self-contained, escaped HTML report for one HTTP assessment."""
+    import os
+    from datetime import datetime
+    from html import escape
+
+    if not isinstance(result, dict) or result.get("module") != "HTTP Security Assessment":
+        raise ValueError("result is not an ApexRecon HTTP assessment")
+    try:
+        duration = float(duration_seconds)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("duration must be numeric") from exc
+    if duration < 0:
+        raise ValueError("duration cannot be negative")
+
+    findings = result.get("findings")
+    limitations = result.get("limitations")
+    if not isinstance(findings, list) or not isinstance(limitations, list):
+        raise ValueError("assessment result is missing findings or limitations")
+
+    now = datetime.now().astimezone()
+    filename = "apex_http_report_" + now.strftime("%Y%m%d_%H%M%S_%f") + ".html"
+    target = escape(str(result.get("target", "Unknown")))
+    path = escape(str(result.get("path", "/")))
+    timestamp = escape(now.isoformat(timespec="seconds"))
+    counts = {level: sum(1 for item in findings if str(item.get("severity", "INFO")).upper() == level)
+              for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")}
+
+    rows = []
+    for item in findings:
+        severity = str(item.get("severity", "INFO")).upper()
+        if severity not in counts:
+            severity = "INFO"
+        rows.append(
+            "<tr>"
+            f"<td><span class='severity {severity.lower()}'>{escape(severity)}</span></td>"
+            f"<td>{escape(str(item.get('check', 'UNKNOWN')))}</td>"
+            f"<td>{escape(str(item.get('status', 'UNKNOWN')))}</td>"
+            f"<td>{escape(str(item.get('evidence', '')))}</td>"
+            f"<td>{escape(str(item.get('recommendation', '')))}</td>"
+            "</tr>"
+        )
+    if not rows:
+        rows.append("<tr><td colspan='5'>No findings were returned. This is not proof of security.</td></tr>")
+
+    limit_items = "".join(f"<li>{escape(str(item))}</li>" for item in limitations)
+    summary_cards = "".join(
+        f"<div class='stat'><strong>{counts[level]}</strong><span>{level.title()}</span></div>"
+        for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+    )
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ApexRecon HTTP Assessment</title>
+<style>
+:root{{color-scheme:dark;--bg:#0b1018;--panel:#121c29;--line:#263648;--text:#e8eef5;--muted:#a5b4c4;--cyan:#48d7e8;--red:#ff647c;--orange:#ffad5c;--gold:#f1d16b;--green:#65d69a}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,sans-serif}}
+main{{max-width:1180px;margin:0 auto;padding:28px 18px 48px}}header,.panel{{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px}}
+.brand{{color:var(--cyan);font-weight:800;letter-spacing:2px;font-size:22px}}h1{{font-size:23px;margin:8px 0}}h2{{font-size:17px;margin:0 0 14px}}
+.meta{{color:var(--muted);overflow-wrap:anywhere}}.stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:18px 0}}
+.stat{{background:var(--panel);border:1px solid var(--line);padding:14px;border-radius:9px}}.stat strong{{display:block;font-size:25px}}.stat span{{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
+.notice{{border-left:4px solid var(--gold);padding:10px 14px;background:#292516;color:#f6e8b2;border-radius:4px}}
+.table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:850px}}th,td{{text-align:left;vertical-align:top;padding:11px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}}th{{color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
+.severity{{font-weight:800;font-size:11px}}.critical,.high{{color:var(--red)}}.medium{{color:var(--orange)}}.low{{color:var(--gold)}}.info{{color:var(--cyan)}}
+li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
+@media print{{body{{background:#fff;color:#111}}header,.panel,.stat{{background:#fff;color:#111;border-color:#ccc}}.meta,li,footer{{color:#333}}.notice{{background:#fff8dc;color:#222}}}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="brand">APEXRECON | TRINTECH DIGITAL DEFENSE</div>
+<h1>HTTP Security Assessment Report</h1>
+<div class="meta">Target: {target} &nbsp;|&nbsp; Path: {path}<br>Generated: {timestamp} &nbsp;|&nbsp; Duration: {duration:.2f}s</div>
+</header>
+<div class="notice"><strong>Scope and interpretation:</strong> This is a bounded HTTP response-configuration assessment, not a comprehensive vulnerability scan or penetration test. Observed missing headers and disclosures are not proof of exploitable vulnerabilities. Review findings in application context.</div>
+<section class="stats">{summary_cards}</section>
+<section class="panel">
+<h2>Observed Findings</h2>
+<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommended action</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table></div>
+</section>
+<section class="panel"><h2>Assessment Limitations</h2><ul>{limit_items}</ul></section>
+<footer>CONFIDENTIAL — Intended only for personnel authorized to receive this assessment.<br>TrinTech Digital Defense · ApexRecon · Operator-initiated assessment</footer>
+</main></body></html>"""
+
+    fd = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = -1
+            handle.write(html)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    return filename
