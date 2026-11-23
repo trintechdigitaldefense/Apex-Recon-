@@ -1,6 +1,5 @@
 import importlib.util
 import os
-import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,8 +48,7 @@ class HTTPCLIIntegrationTests(unittest.TestCase):
             }],
             "limitations": ["One path only."],
         }
-        with tempfile.TemporaryDirectory() as tmp, patch("os.getcwd", return_value=tmp), \
-             patch("os.chdir", side_effect=lambda path: os.chdir(path)), \
+        with tempfile.TemporaryDirectory() as tmp, \
              patch("builtins.input", side_effect=["example.com", ""]), \
              patch.object(cli, "confirm_authorized_scope", return_value=True), \
              patch("apex_web.assess_url", return_value=fake_result) as assess:
