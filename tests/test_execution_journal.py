@@ -27,7 +27,7 @@ class ExecutionJournalTests(unittest.TestCase):
 
             self.assertTrue(report["valid"])
             self.assertEqual(report["execution_id"], execution_id)
-            self.assertEqual(report["execution_status"], "IN_PROGRESS")
+            self.assertEqual(report["execution_status"], "READY")
             self.assertEqual(report["module_states"], {
                 MODULES[0]: "NOT_STARTED",
                 MODULES[2]: "NOT_STARTED",
@@ -82,7 +82,7 @@ class ExecutionJournalTests(unittest.TestCase):
             recovered = load_completed_module_artifacts(path)
             self.assertTrue(recovered["valid"])
             self.assertEqual(recovered["execution_id"], execution_id)
-            self.assertEqual(recovered["execution_status"], "IN_PROGRESS")
+            self.assertEqual(recovered["execution_status"], "INCOMPLETE")
             self.assertEqual(len(recovered["artifacts"]), 1)
             self.assertEqual(recovered["artifacts"][0]["outcome"], outcome)
             self.assertEqual(recovered["module_states"][MODULES[0]], "COMPLETED")
