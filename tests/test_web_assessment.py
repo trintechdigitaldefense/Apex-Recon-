@@ -330,6 +330,8 @@ class AssessmentFlowTests(unittest.TestCase):
         result = web.assess_url("example.com")
         finding = next(f for f in result["findings"] if f["check"] == "HTTPS_ENDPOINT")
         self.assertEqual(finding["status"], "UNAVAILABLE")
+        self.assertEqual(finding["severity"], "UNKNOWN")
+        self.assertEqual(finding["review_priority"], "UNRANKED")
         self.assertEqual(result["https_status"], None)
 
     @patch.object(web, "_fetch")
@@ -362,7 +364,10 @@ class AssessmentFlowTests(unittest.TestCase):
         result = web.assess_url("example.com")
         self.assertIsNone(result["http_status"])
         self.assertIsNone(result["https_status"])
-        self.assertTrue(any(f["status"] == "UNAVAILABLE" for f in result["findings"]))
+        unavailable = [f for f in result["findings"] if f["status"] == "UNAVAILABLE"]
+        self.assertEqual(len(unavailable), 2)
+        self.assertTrue(all(f["severity"] == "UNKNOWN" for f in unavailable))
+        self.assertTrue(all(f["review_priority"] == "UNRANKED" for f in unavailable))
 
     @patch.object(web, "_fetch")
     def test_only_two_requests_are_made(self, mocked_fetch):

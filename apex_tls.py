@@ -139,7 +139,7 @@ def assess_tls(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
             "findings": [
                 _finding(
                     "TLS_HANDSHAKE",
-                    "MEDIUM",
+                    "UNKNOWN",
                     "UNAVAILABLE",
                     f"{type(exc).__name__}: {str(exc)[:400]}",
                     "Confirm that the authorized host is reachable on TCP/443 and review its TLS listener and network path.",

@@ -104,6 +104,9 @@ class TLSAssessmentTests(unittest.TestCase):
         result = apex_tls.assess_tls("example.com")
         self.assertEqual(result["status"], "UNAVAILABLE")
         self.assertIsNone(result["protocol"])
+        finding = result["findings"][0]
+        self.assertEqual(finding["severity"], "UNKNOWN")
+        self.assertEqual(finding["review_priority"], "UNRANKED")
 
     @patch("apex_tls.socket.create_connection")
     @patch("apex_tls.ssl.create_default_context")
