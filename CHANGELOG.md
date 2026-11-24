@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2K unified engagement reliability
+
+### Added
+- Added isolated sequential module execution so an unexpected exception in one selected module does not stop later selected modules.
+- Added independent validation of module status, findings, target scope, duration, limitations and optional timestamps.
+- Converted malformed module output into an explicit FAILED entry while preserving valid results from other modules.
+- Kept unselected modules as NOT_RUN / NOT_SELECTED and selected modules that do not proceed as NOT_RUN / SELECTED_BUT_NOT_RUN.
+- Added offline tests for runner exceptions, missing runners, malformed findings, invalid durations and invalid timestamps.
+
+### Boundaries
+- No scan commands, target scope, network requests, authorization prompts or module behavior changed.
+- No live targets contacted; tests use synthetic data and injected callables.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 ## [2.0.1-dev] — Phase 2J unified CLI engagement integration
 
 ### Added
