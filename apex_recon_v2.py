@@ -1190,6 +1190,83 @@ def unified_engagement_module():
 
 
 # ─────────────────────────────────────────────
+# DETACHED EVIDENCE SIGNING AND VERIFICATION
+# ─────────────────────────────────────────────
+def evidence_signing_module():
+    """Generate signing keys, sign exported engagements, or verify signatures."""
+    import json
+    from getpass import getpass
+    from pathlib import Path
+    from apex_signing import (
+        generate_ed25519_keypair, sign_engagement_record,
+        verify_engagement_signature, export_signature_envelope,
+    )
+
+    print_banner()
+    print(f"{RED}[*] Evidence Signing and Verification{RESET}")
+    print("  [1] Generate encrypted Ed25519 key pair")
+    print("  [2] Sign an existing engagement JSON")
+    print("  [3] Verify a detached engagement signature")
+    print("  [0] Return to main menu")
+    action = input("Select: ").strip()
+
+    try:
+        if action == "1":
+            private_path = input("Private key output path [apexrecon_ed25519_private.pem]: ").strip()
+            public_path = input("Public key output path [apexrecon_ed25519_public.pem]: ").strip()
+            private_path = private_path or "apexrecon_ed25519_private.pem"
+            public_path = public_path or "apexrecon_ed25519_public.pem"
+            password = getpass("Private-key passphrase (minimum 12 characters): ")
+            confirmation = getpass("Confirm passphrase: ")
+            if password != confirmation:
+                print(f"{RED}[!] Passphrases do not match. No keys generated.{RESET}")
+                return
+            result = generate_ed25519_keypair(private_path, public_path, password)
+            print(f"{GREEN}[+] Encrypted private key: {result['private_key_path']}{RESET}")
+            print(f"{GREEN}[+] Public key: {result['public_key_path']}{RESET}")
+            print(f"Public-key SHA-256 fingerprint: {result['public_key_sha256']}")
+            print(f"{YELLOW}[!] Back up the private key securely. Never share it or commit it to Git.{RESET}")
+            print("[i] Verify the public-key fingerprint with the recipient through a separate trusted channel.")
+        elif action == "2":
+            record_path = input("Engagement JSON path: ").strip()
+            private_path = input("Encrypted private-key path: ").strip()
+            signature_path = input("Signature output path [engagement.json.sig.json]: ").strip()
+            if not record_path or not private_path:
+                print(f"{YELLOW}[!] Record and private-key paths are required.{RESET}")
+                return
+            signature_path = signature_path or (record_path + ".sig.json")
+            record = json.loads(Path(record_path).read_text(encoding="utf-8"))
+            password = getpass("Private-key passphrase: ")
+            envelope = sign_engagement_record(record, private_path, password)
+            saved = export_signature_envelope(envelope, signature_path)
+            print(f"{GREEN}[+] Detached signature saved: {saved}{RESET}")
+            print(f"Public-key SHA-256 fingerprint: {envelope['public_key_sha256']}")
+        elif action == "3":
+            record_path = input("Engagement JSON path: ").strip()
+            signature_path = input("Detached signature JSON path: ").strip()
+            public_path = input("Trusted public-key path: ").strip()
+            if not record_path or not signature_path or not public_path:
+                print(f"{YELLOW}[!] All three paths are required.{RESET}")
+                return
+            record = json.loads(Path(record_path).read_text(encoding="utf-8"))
+            envelope = json.loads(Path(signature_path).read_text(encoding="utf-8"))
+            if verify_engagement_signature(record, envelope, public_path):
+                print(f"{GREEN}[+] SIGNATURE VALID: record integrity and Ed25519 signature verified.{RESET}")
+                print(f"Engagement ID: {record['engagement']['id']}")
+                print(f"Signer key fingerprint: {envelope['public_key_sha256']}")
+            else:
+                print(f"{RED}[!] SIGNATURE INVALID: do not rely on this signature.{RESET}")
+        elif action == "0":
+            return
+        else:
+            print(f"{YELLOW}[!] Invalid selection.{RESET}")
+    except Exception as exc:
+        print(f"{RED}[!] Evidence signing operation failed: {type(exc).__name__}: {exc}{RESET}")
+        log(f"Evidence signing operation failed: {type(exc).__name__}")
+    input(f"\\n{GREY}Press Enter to return to main menu...{RESET}")
+
+
+# ─────────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────────
 def main_menu():
@@ -1229,7 +1306,7 @@ if __name__ == "__main__":
             tls_assessment_module()
         elif choice == '5':
             unified_engagement_module()
-        elif choice == '9':
+        elif choice == '6':\n            evidence_signing_module()\n        elif choice == '9':
             print(f"{GREY}Terminating session...{RESET}")
             log("ApexRecon exited cleanly.")
             sys.exit(0)
