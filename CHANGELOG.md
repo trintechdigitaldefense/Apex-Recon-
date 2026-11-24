@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [2.0.1-dev] — Unreleased (R1 Source Recovery and Stabilization)
 
+### Phase 2 — HTTP assessment milestone 2A
+- Add a standalone standard-library HTTP assessment engine for HTTP-to-HTTPS behavior, common security headers, observed cookie flags, and server-header disclosure.
+- Bound the module to two read-only GET requests, standard ports, finite timeouts, query-string removal, and same-host redirects.
+- Add isolated synthetic/mocked regression coverage and document current scope and limitations.
+- Keep the engine separate from the interactive CLI until the evidence model is reviewed; no live scan or client-readiness claim is made.
+
 ### Recovered
 - Restored the last complete executable v2.0 implementation from commit `086eb48` after confirming that the v2.1.0 entry point on `main` is truncated.
 - Kept the restored baseline explicit: the v2.1 web scanner and SMTP/config features are not represented as available until their complete source can be recovered or rebuilt and tested.
