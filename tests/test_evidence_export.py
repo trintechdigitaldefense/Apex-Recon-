@@ -48,11 +48,14 @@ class EvidenceExportTests(unittest.TestCase):
 
     def test_record_does_not_include_url_query_or_raw_response(self):
         result = self.sample()
+        result["assessment_id"] = "33333333-3333-4333-8333-333333333333"
         result["http_final_url"] = "https://example.test/login?token=do-not-export"
         record = evidence.build_evidence_record(result, 0.1)
         rendered = json.dumps(record)
         self.assertNotIn("do-not-export", rendered)
         self.assertNotIn("body", record["evidence"])
+        self.assertEqual(record["assessment"]["id"], result["assessment_id"])
+        self.assertEqual(record["evidence"]["technical_details"]["http_final_url"], "https://example.test/login")
 
     def test_rejects_invalid_assessment_and_duration(self):
         with self.assertRaises(evidence.EvidenceExportError):
