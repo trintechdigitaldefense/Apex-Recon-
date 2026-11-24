@@ -7,7 +7,7 @@ Make ApexRecon's startup menu accurately reflect which modules can run with the 
 ## Runtime behavior
 
 - Startup performs local executable-path checks for `nmap`, `whois`, `dig`, `curl`, and `ip`; it does not execute those tools during the check.
-- OSINT is labelled PARTIAL when one or more collection dependencies are missing. Available collection steps can still run.
+- OSINT is labelled PARTIAL when one or more collection dependencies are missing. Missing `dig`, `whois`, `curl`, or `nmap` checks are explicitly reported as NOT ASSESSED and are not presented as empty/negative results. Available collection steps can still run.
 - SMB assessment is blocked before target input when Nmap is unavailable.
 - Unified engagements record a selected SMB module as UNAVAILABLE when Nmap is missing, rather than treating it as a clean result.
 - HTTP and TLS remain available independently of external OSINT/SMB tools.
