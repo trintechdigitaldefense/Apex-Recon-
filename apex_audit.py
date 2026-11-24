@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -49,6 +50,8 @@ def _verify_bytes(data: bytes) -> dict:
         return {"valid": True, "entries": 0, "head_hash": GENESIS_HASH, "error": None}
     if len(data) > MAX_AUDIT_BYTES:
         return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail exceeds size limit"}
+    if not data.endswith(b"\\n"):
+        return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail has an incomplete final event"}
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
@@ -91,7 +94,7 @@ def _verify_bytes(data: bytes) -> dict:
             unsigned = dict(entry)
             unsigned.pop("entry_hash")
             calculated = hashlib.sha256(_canonical(unsigned)).hexdigest()
-            if not _valid_fingerprint(claimed_hash) or not hashlib.compare_digest(calculated, claimed_hash):
+            if not _valid_fingerprint(claimed_hash) or not hmac.compare_digest(calculated, claimed_hash):
                 raise ValueError("event hash mismatch")
             previous = claimed_hash
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
@@ -120,8 +123,6 @@ def _read_fd(fd: int) -> bytes:
 def verify_audit_trail(path: str | os.PathLike[str]) -> dict:
     """Verify the complete local hash chain without changing the file."""
     audit_path = Path(path)
-    if not audit_path.exists():
-        return _verify_bytes(b"")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(str(audit_path), flags)
@@ -131,6 +132,8 @@ def verify_audit_trail(path: str | os.PathLike[str]) -> dict:
             return _verify_bytes(_read_fd(fd))
         finally:
             os.close(fd)
+    except FileNotFoundError:
+        return _verify_bytes(b"")
     except OSError as exc:
         raise AuditTrailError(f"cannot safely read audit trail: {exc}") from exc
 
@@ -143,7 +146,8 @@ def append_audit_event(
     signer_fingerprint: str | None = None,
 ) -> dict:
     """Append one validated event, refusing to extend a damaged trail."""
-    if event_type not in EVENT_TYPES or result not in RESULTS:
+    if (not isinstance(event_type, str) or event_type not in EVENT_TYPES
+            or not isinstance(result, str) or result not in RESULTS):
         raise AuditTrailError("unsupported audit event type or result")
     if engagement_id is not None:
         try:
