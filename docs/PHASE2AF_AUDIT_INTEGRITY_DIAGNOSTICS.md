@@ -33,6 +33,6 @@ Improve offline diagnosis of damaged local audit JSONL trails without changing o
 
 ```bash
 python3 -m compileall -q apex_audit.py apex_audit_backup.py apex_audit_backup_signing.py tests
-python3 -m unittest tests.test_audit -v
+python3 -m unittest discover -s tests -p 'test_audit.py' -v
 python3 -m unittest discover -s tests -v
 ```
