@@ -43,6 +43,7 @@ on:
       - phase2ai-controlled-recovery-drill-runbooks
       - phase2aj-atomic-storage-edge-case-tests
       - phase2ak-process-crash-recovery-tests
+      - phase2al-filesystem-capability-probe
   pull_request:
     branches:
       - main
