@@ -289,6 +289,9 @@ def load_completed_module_artifacts(path: str | os.PathLike[str]) -> dict:
                 or item.get("status") != report["module_states"][reference["module"]]
                 or not isinstance(item.get("outcome"), dict)):
             raise ExecutionJournalError("module artifact metadata does not match its journal event")
+        outcome_status = item["outcome"].get("status")
+        if not isinstance(outcome_status, str) or outcome_status.strip().upper() != item["status"]:
+            raise ExecutionJournalError("module outcome status does not match its journal completion status")
         artifacts.append(item)
     return {
         "valid": True,
@@ -414,6 +417,9 @@ class ExecutionJournal:
         if outcome is not None:
             if not isinstance(outcome, dict):
                 raise ExecutionJournalError("module outcome artifact must be an object")
+            outcome_status = outcome.get("status")
+            if not isinstance(outcome_status, str) or outcome_status.strip().upper() != status:
+                raise ExecutionJournalError("module outcome status must match the journal completion status")
             payload_object = {
                 "schema_version": "1.0",
                 "execution_id": self.execution_id,
