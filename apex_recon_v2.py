@@ -16,6 +16,7 @@ import uuid
 import ipaddress
 import shutil
 import math
+import importlib.util
 from html import escape as html_escape
 from datetime import datetime, timedelta
 
@@ -82,15 +83,51 @@ def print_banner():
 # ─────────────────────────────────────────────
 # Dependency Check
 # ─────────────────────────────────────────────
-def check_deps():
-    deps = {"nmap": "apt-get install nmap", "whois": "apt-get install whois",
-            "dig": "apt-get install dnsutils", "curl": "apt-get install curl"}
-    missing = [(tool, install) for tool, install in deps.items() if shutil.which(tool) is None]
+def dependency_status():
+    """Return feature-specific local dependency availability without running tools."""
+    tools = {name: shutil.which(name) is not None
+             for name in ("nmap", "whois", "dig", "curl", "ip")}
+    try:
+        signing_available = importlib.util.find_spec("cryptography") is not None
+    except (ImportError, ValueError):
+        signing_available = False
+    return {
+        "tools": tools,
+        "capabilities": {
+            "osint_dns": tools["dig"],
+            "osint_whois": tools["whois"],
+            "osint_geoip": tools["curl"],
+            "osint_ports": tools["nmap"],
+            "smb": tools["nmap"],
+            "subnet_auto_discovery": tools["ip"],
+            "http": True,
+            "tls": True,
+            "unified": True,
+            "signing": signing_available,
+        },
+    }
+
+
+def check_deps(status=None):
+    """Display missing dependencies and return whether all external tools exist."""
+    status = status or dependency_status()
+    packages = {
+        "nmap": "nmap",
+        "whois": "whois",
+        "dig": "dnsutils",
+        "curl": "curl",
+        "ip": "iproute2",
+    }
+    missing = [(tool, package) for tool, package in packages.items()
+               if not status["tools"].get(tool, False)]
     if missing:
-        print(f"\n{YELLOW}[!] Missing dependencies:{RESET}")
-        for tool, cmd in missing:
-            print(f"    {RED}{tool}{RESET} → run: {WHITE}{cmd}{RESET}")
+        print(f"\n{YELLOW}[!] Some capabilities are unavailable:{RESET}")
+        for tool, package in missing:
+            print(f"    {RED}{tool}{RESET} → install package: {WHITE}{package}{RESET}")
+        print(f"{GREY}    HTTP and TLS assessments remain available.{RESET}")
         print()
+    if not status["capabilities"]["signing"]:
+        print(f"{YELLOW}[!] Ed25519 signing is unavailable: install requirements-crypto.txt when needed.{RESET}")
     return not missing
 
 # ─────────────────────────────────────────────
@@ -824,6 +861,11 @@ def osint_module(*, engagement_mode=False):
 # MODULE 2: SMB Network Auditor
 # ─────────────────────────────────────────────
 def smb_auditor_module(*, engagement_mode=False):
+    if not dependency_status()["capabilities"]["smb"]:
+        message = "Nmap is unavailable; SMB assessment was not run."
+        print(f"{YELLOW}[!] {message} Install nmap and restart ApexRecon.{RESET}")
+        return (_engagement_module_result("SMB Network Auditor", "UNAVAILABLE", {}, [], 0, [message])
+                if engagement_mode else None)
     print_banner()
     print(f"{RED}[*] Local Network SMB Auditor — Enterprise Build{RESET}\n")
 
@@ -1153,6 +1195,14 @@ def unified_engagement_module():
         MODULE_NAMES[2]: http_assessment_module,
         MODULE_NAMES[3]: tls_assessment_module,
     }
+    capabilities = dependency_status()["capabilities"]
+
+    def run_capability_aware(name, runner):
+        if name == MODULE_NAMES[1] and not capabilities["smb"]:
+            reason = "Nmap is missing; SMB checks were not executed."
+            print(f"{YELLOW}[!] {reason}{RESET}")
+            return _engagement_module_result(name, "UNAVAILABLE", {}, [], 0, [reason])
+        return runner(engagement_mode=True)
     def report_module_start(name):
         print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
 
@@ -1162,7 +1212,7 @@ def unified_engagement_module():
 
     outcomes = run_selected_modules(
         selected,
-        {name: (lambda runner=runner: runner(engagement_mode=True))
+        {name: (lambda name=name, runner=runner: run_capability_aware(name, runner))
          for name, runner in runners.items()},
         on_start=report_module_start, on_error=report_module_error,
     )
@@ -1194,6 +1244,9 @@ def unified_engagement_module():
 # ─────────────────────────────────────────────
 def evidence_signing_module():
     """Generate keys, sign/verify engagements, and inspect the local audit trail."""
+    if not dependency_status()["capabilities"]["signing"]:
+        print(f"{YELLOW}[!] Ed25519 signing is unavailable. Install requirements-crypto.txt and restart ApexRecon.{RESET}")
+        return
     import json
     from getpass import getpass
     from pathlib import Path
@@ -1382,21 +1435,36 @@ def evidence_signing_module():
 # ─────────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────────
-def main_menu():
+def main_menu(status=None):
     print_banner()
+    status = status or dependency_status()
+    caps = status["capabilities"]
+    osint_missing = [label for key, label in (
+        ("osint_dns", "DNS"), ("osint_whois", "WHOIS"),
+        ("osint_geoip", "GeoIP"), ("osint_ports", "Nmap ports")
+    ) if not caps[key]]
+    osint_state = "PARTIAL" if osint_missing else "AVAILABLE"
+    smb_state = "AVAILABLE" if caps["smb"] else "UNAVAILABLE"
+    signing_state = "AVAILABLE" if caps["signing"] else "UNAVAILABLE"
     print(f"{WHITE}Target Engagement Modules:{RESET}\n")
-    print(f"  {RED}[1]{RESET} {WHITE}External Footprinting (OSINT){RESET}")
+    print(f"  {RED}[1]{RESET} {WHITE}External Footprinting (OSINT) [{osint_state}]{RESET}")
     print(f"       {GREY}DNS · WHOIS · GeoIP · Open Ports · Banner grab{RESET}")
-    print(f"  {RED}[2]{RESET} {WHITE}Local Network SMB Auditor{RESET}")
-    print(f"       {GREY}Host discovery · Share enum · EternalBlue check · HTML report{RESET}")
-    print(f"  {RED}[3]{RESET} {WHITE}HTTP Security Assessment{RESET}")
+    if osint_missing:
+        print(f"       {YELLOW}Missing: {', '.join(osint_missing)}. Available OSINT checks may still run.{RESET}")
+    print(f"  {RED}[2]{RESET} {WHITE}Local Network SMB Auditor [{smb_state}]{RESET}")
+    print(f"       {GREY}Host discovery · Share enum · selected SMB scripts · HTML report{RESET}")
+    if not caps["smb"]:
+        print(f"       {YELLOW}Unavailable until Nmap is installed.{RESET}")
+    print(f"  {RED}[3]{RESET} {WHITE}HTTP Security Assessment [AVAILABLE]{RESET}")
     print(f"       {GREY}HTTPS enforcement · Security headers · Cookie flags · HTML report{RESET}")
-    print(f"  {RED}[4]{RESET} {WHITE}TLS Security Assessment{RESET}")
+    print(f"  {RED}[4]{RESET} {WHITE}TLS Security Assessment [AVAILABLE]{RESET}")
     print(f"       {GREY}Certificate validation · Expiry · Negotiated TLS protocol/cipher · HTML report{RESET}")
     print(f"  {RED}[5]{RESET} {WHITE}Unified Engagement (OSINT/SMB/HTTP/TLS){RESET}")
-    print(f"       {GREY}Select modules · track coverage · export combined JSON/PDF{RESET}")
-    print(f"  {RED}[6]{RESET} {WHITE}Evidence Signing / Verification (Ed25519){RESET}")
+    print(f"       {GREY}Unavailable modules are recorded as UNAVAILABLE, not clean results.{RESET}")
+    print(f"  {RED}[6]{RESET} {WHITE}Evidence Signing / Verification (Ed25519) [{signing_state}]{RESET}")
     print(f"       {GREY}Encrypted keys · detached signatures · offline verification{RESET}")
+    if not caps["signing"]:
+        print(f"       {YELLOW}Install requirements-crypto.txt to enable signing.{RESET}")
     print(f"  {RED}[9]{RESET} {WHITE}Exit Framework{RESET}\n")
     return input(f"{RED}Apex{WHITE}@{RED}TrinTech{WHITE}:~#{RESET} ")
 
@@ -1405,12 +1473,13 @@ def main_menu():
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
     print(f"{GREY}Checking dependencies...{RESET}")
-    check_deps()
+    RUNTIME_STATUS = dependency_status()
+    check_deps(RUNTIME_STATUS)
     time.sleep(0.5)
     log(f"ApexRecon v{VERSION} started.")
 
     while True:
-        choice = main_menu()
+        choice = main_menu(RUNTIME_STATUS)
         if choice == '1':
             osint_module()
         elif choice == '2':
