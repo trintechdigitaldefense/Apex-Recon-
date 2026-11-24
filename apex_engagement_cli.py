@@ -111,13 +111,20 @@ def _validate_outcome(name, outcome):
 
 
 def run_selected_modules(selected, runners, on_start=None, on_error=None,
-                         before_run=None, on_finish=None):
+                         before_run=None, on_finish=None,
+                         abort_on_checkpoint_error=False):
     """Run selected callables with optional durable before/after checkpoints.
 
     on_start remains observational. before_run is a strict gate: if it fails,
     the module is not invoked. on_finish runs after a callable returns or is
     converted to a failure result; if it fails, the result is downgraded to
     FAILED so an unrecorded completion cannot look successful.
+
+    When abort_on_checkpoint_error is true, a before_run or on_finish failure
+    stops the remaining selected modules. This is intended for durable
+    execution journals where continuing after a storage/checkpoint failure
+    could create untracked assessment activity. Ordinary runner failures keep
+    the existing continue-to-next-module behavior.
     """
     if isinstance(selected, (str, bytes)):
         raise ValueError("selected must be a collection of module names")
@@ -142,6 +149,8 @@ def run_selected_modules(selected, runners, on_start=None, on_error=None,
                 outcomes[name] = _failure_entry(
                     name, f"Module was not started because its execution checkpoint failed ({type(exc).__name__})."
                 )
+                if abort_on_checkpoint_error:
+                    break
                 continue
         # Operator callbacks are observational only. A broken console/logging
         # callback must never prevent an authorized module runner from executing.
@@ -176,6 +185,8 @@ def run_selected_modules(selected, runners, on_start=None, on_error=None,
                 outcomes[name] = _failure_entry(
                     name, f"Module result could not be checkpointed ({type(exc).__name__}); treat execution as incomplete."
                 )
+                if abort_on_checkpoint_error:
+                    break
     return outcomes
 
 
