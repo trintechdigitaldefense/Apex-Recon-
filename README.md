@@ -113,3 +113,7 @@ No merge, production release, or client deployment is authorized by this develop
 
 ### Milestone 2I: unified engagement reporting (draft PR)
 Phase 2I adds a standalone engagement packaging layer that combines supplied OSINT, SMB, HTTP and TLS module results under one engagement UUID. It tracks each module as COMPLETED, PARTIAL, FAILED or NOT_RUN, preserves per-module target scope and limitations, consolidates normalized findings, and reports severity counts without inventing a composite risk score. JSON and optional ReportLab PDF exports use exclusive file creation and owner-only POSIX permissions. The package is currently an offline aggregation API; the interactive CLI does not yet orchestrate all four modules into one engagement. See [Phase 2I unified engagement reporting](docs/PHASE2I_UNIFIED_ENGAGEMENT_REPORTING.md).
+
+
+### Milestone 2J: unified CLI engagement integration (draft PR)
+Phase 2J connects the Phase 2I report builder to main-menu option 5. Operators can select all or a subset of OSINT, SMB, HTTP and TLS modules. Each selected module retains its existing target validation and written-authorization prompt. The workflow records unselected and selected-but-not-run modules as NOT_RUN, preserves module findings and limitations, and exports one combined JSON report plus an optional PDF. Individual module menu options remain available. See [Phase 2J unified CLI engagement integration](docs/PHASE2J_UNIFIED_CLI_ENGAGEMENT.md).
