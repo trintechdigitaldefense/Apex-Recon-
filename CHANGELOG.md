@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2F evidence quality and export reliability
+
+### Added
+- Evidence-record checksum verification before JSON export and PDF rendering.
+- Strict UUID validation for assessment evidence IDs.
+- URL sanitization that removes embedded user information, query strings and fragments, including relative URL query data; malformed URLs fail closed.
+- Graceful PDF-generation and PDF-write failure handling that preserves the JSON evidence artifact and reports the PDF error.
+- Offline tests for checksum tampering, URL secret redaction, invalid UUIDs and partial export recovery.
+
+### Boundaries
+- No network behavior or scan scope changes; no live targets contacted.
+- No merge, release or client deployment.
+
 ## [2.0.1-dev] — Phase 2E professional reporting and evidence
 
 ### Added
