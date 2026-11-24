@@ -1250,7 +1250,7 @@ def unified_engagement_module():
         journal.finish_module(name, status, outcome if isinstance(outcome, dict) else None)
 
     def report_module_error(name, exc):
-        print(f"{YELLOW}[!] {name} stopped or could not be checkpointed: {type(exc).__name__}. Continuing with remaining selected modules where safe.{RESET}")
+        print(f"{YELLOW}[!] {name} stopped or could not be checkpointed: {type(exc).__name__}. Assessment execution will stop if a durable checkpoint failed.{RESET}")
         log(f"Unified engagement module/checkpoint failure: {name}: {type(exc).__name__}")
 
     outcomes = run_selected_modules(
@@ -1259,6 +1259,7 @@ def unified_engagement_module():
          for name, runner in runners.items()},
         on_start=report_module_start, on_error=report_module_error,
         before_run=checkpoint_module_start, on_finish=checkpoint_module_finish,
+        abort_on_checkpoint_error=True,
     )
     try:
         module_results = assemble_module_results(selected, outcomes)
