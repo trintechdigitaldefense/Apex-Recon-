@@ -462,7 +462,10 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
             details.append(p("Module limitations: none reported.", "EngagementSmall"))
         story.extend(details)
 
-    story.extend([p("Consolidated Findings", "Heading2")])
+    story.extend([
+        p("Consolidated Findings", "Heading2"),
+        p("Review priority is derived from module-assigned severity alone. It is a triage aid, not a composite risk score or proof of exploitability.", "EngagementSmall"),
+    ])
     finding_rows = [[
         p("Module", "EngagementSmall"), p("Severity", "EngagementSmall"),
         p("Check / Status", "EngagementSmall"), p("Confidence", "EngagementSmall"),
