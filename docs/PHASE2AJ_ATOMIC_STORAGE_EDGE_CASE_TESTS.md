@@ -17,7 +17,7 @@ Extend deterministic, offline regression coverage around the existing create-onl
 
 All tests use Python temporary directories and mocked failure conditions. They do not fill storage, terminate a process, interrupt power, contact a network, run a target assessment, or touch normal evidence directories. The tests do not simulate kernel crash consistency or real filesystem power-loss behavior.
 
-No production storage implementation is changed in this phase. The tests assert the existing fail-closed and inode-specific cleanup contract.
+Phase 2AJ also fixes a cleanup race exposed by the replacement-inode test. The publisher now keeps an open descriptor to the staged inode until failure cleanup completes, preventing the filesystem from reusing that inode number while cleanup compares identities. Cleanup uses `lstat` so a replacement symlink is compared as a link rather than as its target. The change remains local to artifact publication and does not alter assessment behavior or network scope.
 
 ## Validation
 
