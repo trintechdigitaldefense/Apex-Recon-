@@ -47,6 +47,7 @@ on:
       - phase2am-controlled-power-loss-validation
       - phase2an-termux-filesystem-probe-compatibility
       - phase2ao-storage-aware-readiness
+      - phase2ap-assessment-preflight-enforcement
   pull_request:
     branches:
       - main
@@ -88,6 +89,7 @@ on:
       - phase2w-assessment-accuracy-fp-reduction
       - phase2an-termux-filesystem-probe-compatibility
       - phase2ao-storage-aware-readiness
+      - phase2ap-assessment-preflight-enforcement
 
 permissions:
   contents: read

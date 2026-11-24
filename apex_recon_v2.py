@@ -1490,6 +1490,46 @@ def evidence_signing_module():
         log(f"Evidence signing operation failed: {type(exc).__name__}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
+def assessment_preflight(diagnostics_fn=None):
+    """Require verified local evidence storage before any assessment module runs."""
+    if diagnostics_fn is None:
+        from apex_doctor import collect_diagnostics
+        diagnostics_fn = collect_diagnostics
+    report = diagnostics_fn()
+    reasons = []
+    if not report.get("python", {}).get("supported", False):
+        reasons.append("Python runtime is unsupported.")
+    project = report.get("project", {})
+    if not project.get("complete", False):
+        reasons.append("Required ApexRecon project files are missing or unverified.")
+    if not project.get("writable", False):
+        reasons.append("The current artifact output directory is not writable.")
+    storage = report.get("storage", {})
+    if storage.get("checked") is not True or storage.get("compatible") is not True:
+        reasons.append("Atomic evidence storage did not pass its capability probe.")
+    return {"ready": not reasons, "reasons": reasons}
+
+
+def run_assessment_with_preflight(runner, diagnostics_fn=None):
+    """Run an assessment only after a fresh local preflight succeeds."""
+    try:
+        result = assessment_preflight(diagnostics_fn)
+    except Exception as exc:
+        result = {
+            "ready": False,
+            "reasons": [f"Preflight could not be completed ({type(exc).__name__})."],
+        }
+    if not result.get("ready", False):
+        print(f"{RED}[!] Assessment blocked by local preflight.{RESET}")
+        for reason in result.get("reasons", []):
+            print(f"    {YELLOW}- {reason}{RESET}")
+        print(f"{GREY}No assessment module was started and no target was contacted.{RESET}")
+        input(f"\n{GREY}Press Enter to return to the main menu...{RESET}")
+        return False
+    runner()
+    return True
+
+
 # ─────────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────────
@@ -1539,15 +1579,15 @@ if __name__ == "__main__":
     while True:
         choice = main_menu(RUNTIME_STATUS)
         if choice == '1':
-            osint_module()
+            run_assessment_with_preflight(osint_module)
         elif choice == '2':
-            smb_auditor_module()
+            run_assessment_with_preflight(smb_auditor_module)
         elif choice == '3':
-            http_assessment_module()
+            run_assessment_with_preflight(http_assessment_module)
         elif choice == '4':
-            tls_assessment_module()
+            run_assessment_with_preflight(tls_assessment_module)
         elif choice == '5':
-            unified_engagement_module()
+            run_assessment_with_preflight(unified_engagement_module)
         elif choice == '6':
             evidence_signing_module()
         elif choice == '9':
