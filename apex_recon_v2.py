@@ -849,11 +849,11 @@ def osint_module(*, engagement_mode=False):
             missing_osint_tools.append("nmap (port scan)")
             print(f"  {RED}nmap became unavailable before the port scan could start.{RESET}")
         elif out:
-        results["PORTS"] = out
-        # Print only port lines
-        for line in out.splitlines():
-            if "/tcp" in line and "open" in line:
-                print(f"  {GREEN}✓{RESET} {WHITE}{line.strip()}{RESET}")
+            results["PORTS"] = out
+            # Print only port lines
+            for line in out.splitlines():
+                if "/tcp" in line and "open" in line:
+                    print(f"  {GREEN}✓{RESET} {WHITE}{line.strip()}{RESET}")
 
     # Convert only collected datasets into common-schema observations.
     results["structured_findings"] = osint_result_observations(results)
