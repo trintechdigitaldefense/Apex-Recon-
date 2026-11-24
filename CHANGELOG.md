@@ -1,3 +1,18 @@
+## [2.0.1-dev] — Phase 2T HTTP header accuracy and response classification
+
+### Assessment quality
+- Validate HSTS max-age, X-Content-Type-Options, Referrer-Policy and X-Frame-Options values rather than treating arbitrary non-empty values as valid.
+- Distinguish enforced CSP from report-only policy and observe multiple enforced policy values.
+- Validate exact SameSite cookie attributes and require Secure when SameSite=None is used.
+- Expose HTTP status classes as descriptive response metadata, not vulnerability verdicts.
+- Mark Permissions-Policy presence as unvalidated because its complete grammar and browser support are not parsed.
+
+### Boundaries
+- No new requests, methods, paths, ports, probes or target scope.
+- Existing two-request read-only HTTP assessment bound remains unchanged.
+- Synthetic offline tests only; no live targets contacted.
+- No background monitoring, recurring scans, release or deployment.
+
 ## [2.0.1-dev] — Phase 2S CSP policy quality observations
 
 ### Assessment quality
