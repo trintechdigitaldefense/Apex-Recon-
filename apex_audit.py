@@ -45,39 +45,79 @@ def _valid_fingerprint(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def _verification_result(
+    data: bytes,
+    valid: bool,
+    entries: int,
+    head_hash: str | None,
+    error: str | None,
+    failure_code: str | None = None,
+    failure_sequence: int | None = None,
+    verified_bytes: int = 0,
+) -> dict:
+    prefix = data[:verified_bytes]
+    return {
+        "valid": valid,
+        "entries": entries,
+        "head_hash": head_hash,
+        "error": error,
+        "failure_code": failure_code,
+        "failure_sequence": failure_sequence,
+        "verified_bytes": verified_bytes,
+        "verified_prefix_sha256": hashlib.sha256(prefix).hexdigest(),
+        "original_bytes": len(data),
+        "original_sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
 def _verify_bytes(data: bytes) -> dict:
-    if not data:
-        return {"valid": True, "entries": 0, "head_hash": GENESIS_HASH, "error": None}
+    """Verify a JSONL chain and report the exact verified prefix without repair."""
     if len(data) > MAX_AUDIT_BYTES:
-        return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail exceeds size limit"}
-    if not data.endswith(b"\n"):
-        return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail has an incomplete final event"}
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail is not UTF-8"}
-    lines = text.splitlines()
+        return _verification_result(
+            data, False, 0, None, "audit trail exceeds size limit",
+            "size_limit", 1, 0,
+        )
+
+    last_newline = data.rfind(b"\\n")
+    complete_end = last_newline + 1 if last_newline >= 0 else 0
+    complete_data = data[:complete_end]
+    trailing = data[complete_end:]
+    lines = complete_data[:-1].split(b"\\n") if complete_data else []
     if len(lines) > MAX_AUDIT_EVENTS:
-        return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail exceeds event limit"}
+        return _verification_result(
+            data, False, 0, None, "audit trail exceeds event limit",
+            "event_limit", 1, 0,
+        )
 
     previous = GENESIS_HASH
+    verified_bytes = 0
+    seen_hashes = set()
     expected_keys = {
         "schema_version", "sequence", "timestamp", "event_type",
         "engagement_id", "result", "signer_fingerprint",
         "previous_hash", "entry_hash",
     }
-    for index, line in enumerate(lines, start=1):
+
+    for index, raw_line in enumerate(lines, start=1):
+        try:
+            line = raw_line.decode("utf-8")
+        except UnicodeDecodeError:
+            return _verification_result(
+                data, False, index - 1, previous, f"event {index}: audit event is not UTF-8",
+                "invalid_utf8", index, verified_bytes,
+            )
         try:
             entry = json.loads(line)
             if not isinstance(entry, dict) or set(entry) != expected_keys:
                 raise ValueError("invalid event fields")
             if _canonical(entry).decode("utf-8") != line:
                 raise ValueError("event JSON is not canonical")
-            if (entry["schema_version"] != AUDIT_SCHEMA
-                    or isinstance(entry["sequence"], bool)
+            if entry["schema_version"] != AUDIT_SCHEMA:
+                raise ValueError("unsupported audit schema")
+            if (isinstance(entry["sequence"], bool)
                     or not isinstance(entry["sequence"], int)
                     or entry["sequence"] != index):
-                raise ValueError("unsupported schema or sequence")
+                raise ValueError("sequence is duplicated, missing or out of order")
             if entry["event_type"] not in EVENT_TYPES or entry["result"] not in RESULTS:
                 raise ValueError("unsupported event type or result")
             if entry["previous_hash"] != previous:
@@ -101,14 +141,51 @@ def _verify_bytes(data: bytes) -> dict:
             calculated = hashlib.sha256(_canonical(unsigned)).hexdigest()
             if not _valid_fingerprint(claimed_hash) or not hmac.compare_digest(calculated, claimed_hash):
                 raise ValueError("event hash mismatch")
+            if claimed_hash in seen_hashes:
+                raise ValueError("duplicate audit event hash")
+            seen_hashes.add(claimed_hash)
             previous = claimed_hash
+            verified_bytes += len(raw_line) + 1
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            return {
-                "valid": False, "entries": index - 1, "head_hash": previous,
-                "error": f"event {index}: {exc}",
-            }
-    return {"valid": True, "entries": len(lines), "head_hash": previous, "error": None}
+            message = str(exc)
+            if "duplicate audit event hash" in message:
+                code = "duplicate_event"
+            elif "sequence is duplicated" in message:
+                code = "sequence_error"
+            elif "hash-chain" in message:
+                code = "broken_hash_chain"
+            elif "event hash mismatch" in message:
+                code = "event_hash_mismatch"
+            elif "unsupported audit schema" in message:
+                code = "unsupported_schema"
+            elif "unsupported event" in message:
+                code = "unsupported_event"
+            elif "timestamp" in message:
+                code = "invalid_timestamp"
+            elif "engagement UUID" in message:
+                code = "invalid_engagement_id"
+            elif "fingerprint" in message:
+                code = "invalid_fingerprint"
+            elif "canonical" in message:
+                code = "non_canonical_json"
+            elif "Expecting" in message or "JSON" in message:
+                code = "invalid_json"
+            else:
+                code = "invalid_event"
+            return _verification_result(
+                data, False, index - 1, previous, f"event {index}: {exc}",
+                code, index, verified_bytes,
+            )
 
+    if trailing:
+        return _verification_result(
+            data, False, len(lines), previous,
+            "audit trail has an incomplete final event",
+            "incomplete_final_event", len(lines) + 1, verified_bytes,
+        )
+    return _verification_result(
+        data, True, len(lines), previous, None, None, None, verified_bytes,
+    )
 
 def _read_fd(fd: int) -> bytes:
     chunks = []
