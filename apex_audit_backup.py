@@ -65,11 +65,11 @@ def _write_exclusive(path, data):
 
 def create_audit_backup(audit_path, backup_path, checkpoint_path):
     """Create a portable JSON backup and detached checkpoint, without overwrite."""
-    try:
+    if os.path.islink(audit_path):
+        raise AuditBackupError("source audit path must not be a symlink")
+    if os.path.lexists(audit_path):
         audit_data = _read_regular(audit_path, MAX_AUDIT_BYTES)
-    except AuditBackupError:
-        if Path(audit_path).exists():
-            raise
+    else:
         audit_data = b""
     audit_result = _verify_bytes(audit_data)
     if not audit_result["valid"]:
