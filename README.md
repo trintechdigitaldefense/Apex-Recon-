@@ -235,3 +235,7 @@ Phase 2AL adds a non-destructive local probe for same-directory hard links, dire
 
 ### Milestone 2AM: controlled power-loss validation protocol (development)
 Phase 2AM turns the recovery drill guidance into a structured, repeatable protocol for actual guest-VM power interruption. It defines staging, post-publication, backup/checkpoint, restore and completed-artifact scenarios; requires disposable VM snapshots, synthetic data, guest-only power-off, at least three runs per scenario, and recorded filesystem/hash evidence. The protocol is not a claim that physical drills have passed. CI, process termination tests and filesystem capability probes are not substitutes for actual power-loss observations. See [Phase 2AM controlled power-loss validation](docs/PHASE2AM_CONTROLLED_POWER_LOSS_VALIDATION.md).
+
+
+### Milestone 2AO: storage-aware operational readiness (development)
+Phase 2AO makes `apex_doctor.py` run the non-destructive atomic-storage capability probe against the actual artifact output directory. Ordinary write access is no longer treated as sufficient evidence-storage readiness: missing hard-link support, failed atomic publication, directory sync, private mode, or cleanup causes a non-zero readiness result. The atomic publisher remains fail-closed with no direct-write fallback. See [Phase 2AO storage-aware readiness](docs/PHASE2AO_STORAGE_AWARE_READINESS.md).
