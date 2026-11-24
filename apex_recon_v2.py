@@ -1152,9 +1152,8 @@ def unified_engagement_module():
         MODULE_NAMES[2]: http_assessment_module,
         MODULE_NAMES[3]: tls_assessment_module,
     }
-    for name in MODULE_NAMES:
-        if name in selected:
-            print(f"\\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
+    def report_module_start(name):
+        print(f"\\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
 
     def report_module_error(name, exc):
         print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
@@ -1164,7 +1163,7 @@ def unified_engagement_module():
         selected,
         {name: (lambda runner=runner: runner(engagement_mode=True))
          for name, runner in runners.items()},
-        on_error=report_module_error,
+        on_start=report_module_start, on_error=report_module_error,
     )
     try:
         module_results = assemble_module_results(selected, outcomes)
