@@ -29,7 +29,7 @@ The probe never creates the parent directory. It creates and removes only a uniq
 - `atomic_publication`: whether the actual `write_exclusive_atomic` helper published and verified exact bytes, and whether its directory is clean after the probe removes the published artifact. Some compatibility filesystems expose inode-associated helper sidecars while the published link exists; those are not treated as abandoned staging files if they disappear when the final link is removed.
 - `free_bytes_before/after`: informational available-space observations where `statvfs` exists.
 - `temporary_artifacts_removed`: whether the probe directory was removed. Cleanup uses bounded retries for compatibility filesystems that create helper sidecars during link/unlink; any remaining cleanup failure is reported in `temporary_cleanup_error` rather than masking the capability JSON.
-- `overall_atomic_storage_compatible`: true only when hard links, directory fsync, atomic publication, content verification and post-removal cleanup all pass.
+- `overall_atomic_storage_compatible`: true only when hard links, directory fsync, atomic publication, content verification and post-removal cleanup all pass; on POSIX, the published file must also have mode `0600`.
 
 Exit code 0 means the required atomic-storage checks passed. Exit code 1 means one or more capabilities are unsupported or failed. Exit code 2 means the requested parent could not be used.
 
