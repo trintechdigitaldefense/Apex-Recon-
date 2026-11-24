@@ -1129,7 +1129,8 @@ def tls_assessment_module(*, engagement_mode=False):
 def unified_engagement_module():
     """Run selected existing modules and export one consolidated engagement."""
     from apex_engagement import build_engagement_record, export_engagement_json, export_engagement_pdf
-    from apex_engagement_cli import MODULE_NAMES, parse_module_selection, assemble_module_results
+    from apex_engagement_cli import (MODULE_NAMES, parse_module_selection,
+                                     run_selected_modules, assemble_module_results)
 
     print_banner()
     print(f"{RED}[*] Unified Engagement — operator-selected modules{RESET}\n")
@@ -1152,19 +1153,19 @@ def unified_engagement_module():
         MODULE_NAMES[2]: http_assessment_module,
         MODULE_NAMES[3]: tls_assessment_module,
     }
-    outcomes = {}
-    for name in MODULE_NAMES:
-        if name not in selected:
-            continue
+    def report_module_start(name):
         print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
-        try:
-            outcomes[name] = runners[name](engagement_mode=True)
-        except Exception as exc:
-            print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
-            log(f"Unified engagement module failure: {name}: {type(exc).__name__}")
-            outcomes[name] = _engagement_module_result(
-                name, "FAILED", {"module": name, "scope": "not fully captured"}, [], 0,
-                [f"Module stopped unexpectedly ({type(exc).__name__}); review the operator log."])
+
+    def report_module_error(name, exc):
+        print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
+        log(f"Unified engagement module failure: {name}: {type(exc).__name__}")
+
+    outcomes = run_selected_modules(
+        selected,
+        {name: (lambda runner=runner: runner(engagement_mode=True))
+         for name, runner in runners.items()},
+        on_start=report_module_start, on_error=report_module_error,
+    )
     try:
         module_results = assemble_module_results(selected, outcomes)
         record = build_engagement_record({"engagement_name": engagement_name}, module_results)

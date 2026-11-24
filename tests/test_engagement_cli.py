@@ -1,7 +1,8 @@
 """Offline tests for Phase 2J unified engagement CLI helpers."""
 import unittest
 
-from apex_engagement_cli import MODULE_NAMES, assemble_module_results, parse_module_selection
+from apex_engagement_cli import (MODULE_NAMES, assemble_module_results, parse_module_selection,
+                                 run_selected_modules)
 from apex_engagement import build_engagement_record, verify_engagement_record
 
 
@@ -68,18 +69,110 @@ class ModuleAssemblyTests(unittest.TestCase):
         self.assertEqual(record["summary"]["total_findings"], 1)
         self.assertTrue(verify_engagement_record(record))
 
-    def test_rejects_invalid_outcomes_and_not_run_findings(self):
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {"status": "UNKNOWN"}})
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {
-                "status": "NOT_RUN", "target_scope": {"target": "example.com"},
-                "findings": [{"check": "x"}],
-            }})
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {
-                "status": "COMPLETED", "target_scope": {}, "findings": [],
-            }})
+    def test_invalid_outcomes_and_not_run_findings_become_failed(self):
+        invalid_outcomes = (
+            {"status": "UNKNOWN", "target_scope": {"target": "example.com"}, "findings": []},
+            {"status": "NOT_RUN", "target_scope": {"target": "example.com"},
+             "findings": [{"check": "x"}]},
+            {"status": "COMPLETED", "target_scope": {}, "findings": []},
+        )
+        for outcome in invalid_outcomes:
+            with self.subTest(outcome=outcome):
+                entries = assemble_module_results(
+                    {MODULE_NAMES[0]}, {MODULE_NAMES[0]: outcome}
+                )
+                self.assertEqual(entries[0]["status"], "FAILED")
+                self.assertEqual(entries[0]["findings"], [])
+
+    def test_invalid_module_output_isolated_and_engagement_remains_verifiable(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        outcomes = {
+            MODULE_NAMES[0]: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [{"check": "DNS_A", "severity": "INFO", "status": "OBSERVED"}],
+            },
+            MODULE_NAMES[2]: {
+                "status": "COMPLETED", "target_scope": {"url": "https://example.com"},
+                "findings": ["malformed finding"],
+            },
+        }
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "COMPLETED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "FAILED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["findings"], [])
+        self.assertEqual(by_name[MODULE_NAMES[1]]["status"], "NOT_RUN")
+        record = build_engagement_record({"engagement_name": "failure isolation"}, entries)
+        self.assertEqual(record["engagement"]["status"], "PARTIAL")
+        self.assertTrue(verify_engagement_record(record))
+
+    def test_combined_finding_limit_is_enforced_per_module(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
+        outcomes = {
+            MODULE_NAMES[0]: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [{"check": "A", "status": "OBSERVED"} for _ in range(1500)],
+            },
+            MODULE_NAMES[1]: {
+                "status": "COMPLETED", "target_scope": {"network": "192.0.2.0/24"},
+                "findings": [{"check": "B", "status": "OBSERVED"} for _ in range(600)],
+            },
+        }
+        entries = assemble_module_results(selected, outcomes)
+        self.assertEqual(entries[0]["status"], "COMPLETED")
+        self.assertEqual(entries[1]["status"], "FAILED")
+        self.assertEqual(len(entries[0]["findings"]), 1500)
+        self.assertEqual(entries[1]["findings"], [])
+
+    def test_invalid_duration_and_timestamp_fail_only_the_affected_module(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
+        outcomes = {
+            MODULE_NAMES[0]: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [], "duration_seconds": float("nan"),
+            },
+            MODULE_NAMES[1]: {
+                "status": "COMPLETED", "target_scope": {"network": "192.0.2.0/24"},
+                "findings": [], "started_at": "not-a-timestamp",
+            },
+        }
+        entries = assemble_module_results(selected, outcomes)
+        self.assertTrue(all(entry["status"] == "FAILED" for entry in entries[:2]))
+
+    def test_runner_exception_does_not_prevent_later_selected_modules(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        calls = []
+        errors = []
+
+        def broken():
+            calls.append("broken")
+            raise RuntimeError("synthetic failure")
+
+        def healthy():
+            calls.append("healthy")
+            return {
+                "status": "COMPLETED", "target_scope": {"url": "https://example.com"},
+                "findings": [], "duration_seconds": 0.1,
+            }
+
+        outcomes = run_selected_modules(
+            selected, {MODULE_NAMES[0]: broken, MODULE_NAMES[2]: healthy},
+            on_error=lambda name, exc: errors.append((name, type(exc).__name__)),
+        )
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(calls, ["broken", "healthy"])
+        self.assertEqual(errors, [(MODULE_NAMES[0], "RuntimeError")])
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "COMPLETED")
+
+    def test_runner_missing_or_returns_none_is_recorded_without_abort(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
+        outcomes = run_selected_modules(selected, {MODULE_NAMES[0]: lambda: None})
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "NOT_RUN")
+        self.assertEqual(by_name[MODULE_NAMES[1]]["status"], "FAILED")
 
 
 if __name__ == "__main__":
