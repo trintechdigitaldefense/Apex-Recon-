@@ -64,6 +64,8 @@ def _new_event(sequence: int, execution_id: str, event_type: str,
         "module": module,
         "status": status,
         "selected_modules": selected_modules,
+        "artifact_file": None,
+        "artifact_sha256": None,
         "previous_hash": previous_hash,
     }
     event = dict(unsigned)
@@ -96,7 +98,7 @@ def _verify_bytes(data: bytes) -> dict:
     expected_keys = {
         "schema_version", "sequence", "timestamp", "execution_id",
         "event_type", "module", "status", "selected_modules",
-        "previous_hash", "event_hash",
+        "artifact_file", "artifact_sha256", "previous_hash", "event_hash",
     }
     for index, line in enumerate(lines, start=1):
         try:
@@ -133,7 +135,9 @@ def _verify_bytes(data: bytes) -> dict:
                         or len(modules) != len(set(modules))
                         or not set(modules).issubset(set(MODULES))):
                     raise ValueError("invalid selected module list")
-                if event["module"] is not None or event["status"] is not None:
+                if (event["module"] is not None or event["status"] is not None
+                        or event["artifact_file"] is not None
+                        or event["artifact_sha256"] is not None):
                     raise ValueError("engagement start cannot carry module state")
                 execution_id = current_id
                 selected = list(modules)
@@ -144,20 +148,34 @@ def _verify_bytes(data: bytes) -> dict:
                 if event["selected_modules"] is not None:
                     raise ValueError("selected modules may appear only in the first event")
                 kind = event["event_type"]
+                artifact_file = event["artifact_file"]
+                artifact_sha256 = event["artifact_sha256"]
                 module = event["module"]
                 status = event["status"]
                 if finalized is not None:
                     raise ValueError("event appears after engagement finalization")
                 if kind == "MODULE_STARTED":
-                    if module not in states or status is not None or states[module] != "NOT_STARTED":
+                    if (module not in states or status is not None or states[module] != "NOT_STARTED"
+                            or artifact_file is not None or artifact_sha256 is not None):
                         raise ValueError("invalid module start transition")
                     states[module] = "STARTED"
                 elif kind == "MODULE_FINISHED":
                     if module not in states or status not in TERMINAL_STATUSES or states[module] != "STARTED":
                         raise ValueError("invalid module finish transition")
+                    if artifact_file is None:
+                        if artifact_sha256 is not None:
+                            raise ValueError("artifact checksum has no artifact path")
+                    else:
+                        if (not isinstance(artifact_file, str) or Path(artifact_file).name != artifact_file
+                                or not artifact_file.startswith("apex_execution_")
+                                or not isinstance(artifact_sha256, str)
+                                or len(artifact_sha256) != 64
+                                or any(char not in "0123456789abcdef" for char in artifact_sha256)):
+                            raise ValueError("invalid module artifact reference")
                     states[module] = status
                 elif kind in {"ENGAGEMENT_FINALIZED", "ENGAGEMENT_FINALIZATION_FAILED"}:
-                    if module is not None or status is not None:
+                    if (module is not None or status is not None
+                            or artifact_file is not None or artifact_sha256 is not None):
                         raise ValueError("finalization event cannot carry module state")
                     if any(value == "STARTED" for value in states.values()):
                         raise ValueError("cannot finalize while a module is still active")
@@ -242,7 +260,8 @@ class ExecutionJournal:
         return journal
 
     def _append(self, event_type: str, module: str | None = None,
-                status: str | None = None) -> dict:
+                status: str | None = None, artifact_file: str | None = None,
+                artifact_sha256: str | None = None) -> dict:
         flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
         try:
             fd = os.open(str(self.path), flags)
@@ -271,6 +290,8 @@ class ExecutionJournal:
             if event_type == "MODULE_STARTED":
                 if module not in current["module_states"] or current["module_states"][module] != "NOT_STARTED":
                     raise ExecutionJournalError("module cannot enter STARTED from its current state")
+                if artifact_file is not None or artifact_sha256 is not None:
+                    raise ExecutionJournalError("module start cannot include an evidence artifact")
             elif event_type == "MODULE_FINISHED":
                 if (module not in current["module_states"]
                         or current["module_states"][module] != "STARTED"
@@ -279,7 +300,7 @@ class ExecutionJournal:
             elif event_type in {"ENGAGEMENT_FINALIZED", "ENGAGEMENT_FINALIZATION_FAILED"}:
                 if any(value in {"STARTED", "NOT_STARTED"} for value in current["module_states"].values()):
                     raise ExecutionJournalError("all selected modules must be resolved before finalization")
-                module = status = None
+                module = status = artifact_file = artifact_sha256 = None
             else:
                 raise ExecutionJournalError("unsupported event type")
 
@@ -287,6 +308,11 @@ class ExecutionJournal:
                 current["events"] + 1, self.execution_id, event_type,
                 current["head_hash"], module=module, status=status,
             )
+            event["artifact_file"] = artifact_file
+            event["artifact_sha256"] = artifact_sha256
+            unsigned = dict(event)
+            unsigned.pop("event_hash")
+            event["event_hash"] = _hash_event(unsigned)
             payload = _canonical(event) + b"\n"
             if total + len(payload) > MAX_JOURNAL_BYTES:
                 raise ExecutionJournalError("journal size limit reached")
@@ -309,8 +335,37 @@ class ExecutionJournal:
     def start_module(self, module: str) -> dict:
         return self._append("MODULE_STARTED", module=module)
 
-    def finish_module(self, module: str, status: str) -> dict:
-        return self._append("MODULE_FINISHED", module=module, status=status)
+    def finish_module(self, module: str, status: str, outcome: dict | None = None) -> dict:
+        artifact_file = None
+        artifact_sha256 = None
+        if outcome is not None:
+            if not isinstance(outcome, dict):
+                raise ExecutionJournalError("module outcome artifact must be an object")
+            payload_object = {
+                "schema_version": "1.0",
+                "execution_id": self.execution_id,
+                "module": module,
+                "status": status,
+                "outcome": outcome,
+            }
+            try:
+                payload = (json.dumps(
+                    payload_object, sort_keys=True, separators=(",", ":"),
+                    ensure_ascii=False, allow_nan=False,
+                ) + "\\n").encode("utf-8")
+            except (TypeError, ValueError) as exc:
+                raise ExecutionJournalError("module outcome is not safely serializable") from exc
+            module_index = MODULES.index(module) + 1 if module in MODULES else 0
+            artifact_file = f"{self.path.stem}_module_{module_index}.json"
+            try:
+                write_exclusive_atomic(self.path.parent / artifact_file, payload)
+            except OSError as exc:
+                raise ExecutionJournalError(f"cannot persist module outcome: {type(exc).__name__}") from exc
+            artifact_sha256 = hashlib.sha256(payload).hexdigest()
+        return self._append(
+            "MODULE_FINISHED", module=module, status=status,
+            artifact_file=artifact_file, artifact_sha256=artifact_sha256,
+        )
 
     def finalize(self) -> dict:
         return self._append("ENGAGEMENT_FINALIZED")
