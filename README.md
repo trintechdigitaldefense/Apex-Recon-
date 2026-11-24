@@ -189,3 +189,7 @@ Phase 2Z adds an offline diagnostic for Python support, external command availab
 
 ### Milestone 2AA: capability-aware startup (development)
 Phase 2AA makes startup dependency reporting feature-specific. Missing Nmap prevents SMB assessment from running and records the module as UNAVAILABLE in unified engagements; missing unrelated tools do not block HTTP/TLS. OSINT is labelled PARTIAL when individual collection tools are missing, and signing is clearly disabled when cryptography is unavailable. No scan scope, request behavior, or authorization gates change. See [Phase 2AA capability-aware startup](docs/PHASE2AA_CAPABILITY_AWARE_STARTUP.md).
+
+
+### Milestone 2AB: installation and operational reliability (development)
+Phase 2AB expands the offline preflight to check the required project files, actual project-directory write access, the active Python interpreter, virtual-environment state, and pip/venv availability. It adds isolated-environment guidance and recovery steps for common Termux/proot and externally-managed Python issues. The diagnostic creates and removes one temporary local file; it does not install packages, alter permissions, or contact targets. No assessment behavior or authorization gates change. See [Phase 2AB installation and operational reliability](docs/PHASE2AB_INSTALLATION_OPERATIONAL_RELIABILITY.md).
