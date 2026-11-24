@@ -92,6 +92,22 @@ class EvidenceSigningTests(unittest.TestCase):
         with self.assertRaises(EngagementError):
             sign_engagement_record(self.record, self.private_path, "wrong passphrase")
 
+    def test_malformed_private_key_is_reported_as_input_error(self):
+        malformed = self.root / "malformed-private.pem"
+        malformed.write_text("not a PEM key", encoding="utf-8")
+        with self.assertRaises(EngagementError):
+            sign_engagement_record(self.record, malformed, PASSPHRASE)
+
+    def test_malformed_public_key_returns_invalid_signature(self):
+        envelope = sign_engagement_record(
+            self.record, self.private_path, PASSPHRASE
+        )
+        malformed = self.root / "malformed-public.pem"
+        malformed.write_text("not a PEM key", encoding="utf-8")
+        self.assertFalse(verify_engagement_signature(
+            self.record, envelope, malformed
+        ))
+
     def test_key_generation_requires_strong_passphrase(self):
         with self.assertRaises(EngagementError):
             generate_ed25519_keypair(
