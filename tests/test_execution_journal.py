@@ -9,6 +9,7 @@ from apex_execution import (
     ExecutionJournalError,
     MODULES,
     inspect_execution_journal,
+    load_completed_module_artifacts,
 )
 
 
@@ -65,6 +66,39 @@ class ExecutionJournalTests(unittest.TestCase):
             with self.assertRaises(ExecutionJournalError):
                 journal.start_module(MODULES[0])
             self.assertEqual(inspect_execution_journal(path)["events"], 2)
+
+    def test_completed_module_outcome_is_saved_and_recoverable_after_interruption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, execution_id = self._create(directory)
+            outcome = {
+                "status": "COMPLETED",
+                "target_scope": {"url": "https://example.com"},
+                "findings": [{"check": "HSTS", "severity": "MEDIUM", "evidence": "header absent"}],
+                "duration_seconds": 1.2,
+            }
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED", outcome)
+
+            recovered = load_completed_module_artifacts(path)
+            self.assertTrue(recovered["valid"])
+            self.assertEqual(recovered["execution_id"], execution_id)
+            self.assertEqual(recovered["execution_status"], "IN_PROGRESS")
+            self.assertEqual(len(recovered["artifacts"]), 1)
+            self.assertEqual(recovered["artifacts"][0]["outcome"], outcome)
+            self.assertEqual(recovered["module_states"][MODULES[0]], "COMPLETED")
+
+    def test_module_artifact_tampering_is_detected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED", {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [], "duration_seconds": 0.1,
+            })
+            artifact = next(Path(directory).glob("*_module_1.json"))
+            artifact.write_text('{"tampered":true}\n', encoding="utf-8")
+            with self.assertRaisesRegex(ExecutionJournalError, "checksum mismatch"):
+                load_completed_module_artifacts(path)
 
     def test_declined_module_can_be_recorded_not_run(self):
         with tempfile.TemporaryDirectory() as directory:
