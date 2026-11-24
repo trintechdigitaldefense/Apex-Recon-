@@ -133,6 +133,31 @@ class HeaderAssessmentTests(unittest.TestCase):
         self.assertEqual(statuses["MIME_SNIFFING"], "PRESENT")
         self.assertEqual(statuses["CLICKJACKING_PROTECTION"], "PRESENT")
 
+    def test_csp_policy_quality_reports_unsafe_sources_and_missing_restrictions(self):
+        headers = self.headers({
+            "Content-Security-Policy": "default-src *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'",
+        })
+        findings = web._inspect_headers(headers, "https")
+        checks = {item["check"]: item for item in findings}
+        self.assertIn("CSP_UNSAFE_EVAL", checks)
+        self.assertIn("CSP_UNSAFE_INLINE_SCRIPT", checks)
+        self.assertIn("CSP_UNSAFE_INLINE_STYLE", checks)
+        self.assertIn("CSP_WILDCARD_SOURCE", checks)
+        self.assertIn("CSP_OBJECT_SRC", checks)
+        self.assertIn("CSP_BASE_URI", checks)
+        self.assertEqual(checks["CSP_UNSAFE_EVAL"]["severity"], "MEDIUM")
+
+    def test_csp_policy_quality_accepts_restricted_policy(self):
+        findings = web._inspect_csp_policy(
+            "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'"
+        )
+        self.assertEqual(findings, [])
+
+    def test_csp_duplicate_directives_use_first_occurrence(self):
+        findings = web._inspect_csp_policy(
+            "default-src 'self'; default-src *; object-src 'none'; base-uri 'self'"
+        )
+        self.assertFalse(any(item["check"] == "CSP_WILDCARD_SOURCE" for item in findings))
     def test_findings_use_common_schema_with_observation_confidence(self):
         findings = web._inspect_headers(self.headers(), "https")
         finding = next(item for item in findings if item["check"] == "CSP")
