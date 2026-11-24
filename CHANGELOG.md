@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2J unified CLI engagement integration
+
+### Added
+- Added main-menu option 5 to start one operator-driven engagement and select ALL or a subset of OSINT, SMB, HTTP and TLS modules.
+- Reused each module's existing target validation and exact-scope authorization prompt.
+- Captured module findings, target scopes, durations and limitations for the Phase 2I engagement builder.
+- Recorded unselected and selected-but-not-run modules explicitly as NOT_RUN; preserved FAILED and PARTIAL outcomes.
+- Added unified JSON export and optional PDF export while retaining individual module workflows.
+- Added offline selection and assembly tests.
+
+### Boundaries
+- No new probes, requests, paths, ports, scan scope or background operation.
+- Operator-initiated sequential workflow only; no live targets contacted during tests.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
+
 ## [2.0.1-dev] — Phase 2I unified engagement reporting
 
 ### Added
