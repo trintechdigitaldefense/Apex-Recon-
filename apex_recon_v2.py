@@ -816,9 +816,7 @@ def osint_module(*, engagement_mode=False):
         osint_limitations.append("No structured OSINT observations were collected during this run.")
     module_result = _engagement_module_result(
         "External Footprinting (OSINT)", osint_status, {"target": domain},
-        results.get("structured_findings", []), duration,
-        ["OSINT collection is best-effort; missing records are not negative security results.",
-         "The existing GeoIP workflow sends the resolved target IP to ipinfo.io."])
+        results.get("structured_findings", []), duration, osint_limitations)
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
     return module_result if engagement_mode else None
 
@@ -1015,12 +1013,16 @@ def http_assessment_module(*, engagement_mode=False):
         print(f"         {finding.get('evidence', '')}")
 
     result["assessment_id"] = str(uuid.uuid4())
+    http_ok = result.get("http_final_scheme") is not None
+    https_ok = result.get("https_status") is not None
+    http_status = "COMPLETED" if http_ok and https_ok else ("PARTIAL" if http_ok or https_ok else "FAILED")
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
         print(f"{RED}[!] Assessment completed, but report could not be saved: {exc}{RESET}")
         log(f"HTTP assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
-        module_result = _engagement_module_result("HTTP Security Assessment", "PARTIAL",
+        report_status = "PARTIAL" if http_status == "COMPLETED" else http_status
+        module_result = _engagement_module_result("HTTP Security Assessment", report_status,
             {"url": scoped_target}, result.get("findings", []), duration,
             ["HTTP assessment completed, but the standalone HTML report could not be saved."])
         return module_result if engagement_mode else None
@@ -1039,9 +1041,6 @@ def http_assessment_module(*, engagement_mode=False):
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
-    http_ok = result.get("http_final_scheme") is not None
-    https_ok = result.get("https_status") is not None
-    http_status = "COMPLETED" if http_ok and https_ok else ("PARTIAL" if http_ok or https_ok else "FAILED")
     module_result = _engagement_module_result(
         "HTTP Security Assessment", http_status, {"url": scoped_target},
         result.get("findings", []), duration,
@@ -1089,12 +1088,14 @@ def tls_assessment_module(*, engagement_mode=False):
         print(f"         {finding.get('evidence', '')}")
 
     result["assessment_id"] = str(uuid.uuid4())
+    tls_status = "COMPLETED" if result.get("status") == "VERIFIED" else "FAILED"
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
         print(f"{RED}[!] TLS assessment completed, but report could not be saved: {exc}{RESET}")
         log(f"TLS assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
-        module_result = _engagement_module_result("TLS Security Assessment", "PARTIAL",
+        report_status = "PARTIAL" if tls_status == "COMPLETED" else tls_status
+        module_result = _engagement_module_result("TLS Security Assessment", report_status,
             {"host": host, "port": 443}, result.get("findings", []), duration,
             ["TLS assessment completed, but the standalone HTML report could not be saved."])
         return module_result if engagement_mode else None
@@ -1114,7 +1115,6 @@ def tls_assessment_module(*, engagement_mode=False):
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
-    tls_status = "COMPLETED" if result.get("status") == "VERIFIED" else "FAILED"
     module_result = _engagement_module_result(
         "TLS Security Assessment", tls_status, {"host": host, "port": 443},
         result.get("findings", []), duration,
