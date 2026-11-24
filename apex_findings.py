@@ -11,10 +11,20 @@ import re
 from typing import Any
 
 
-FINDING_SCHEMA_VERSION = "1.0"
+FINDING_SCHEMA_VERSION = "1.1"
 SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"}
 CONFIDENCE_LEVELS = {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}
 EVIDENCE_TYPES = {"OBSERVATION", "INDICATOR", "INFERENCE", "UNKNOWN"}
+REVIEW_PRIORITIES = {"P1", "P2", "P3", "INFO", "UNRANKED"}
+
+_PRIORITY_BY_SEVERITY = {
+    "CRITICAL": "P1",
+    "HIGH": "P1",
+    "MEDIUM": "P2",
+    "LOW": "P3",
+    "INFO": "INFO",
+    "UNKNOWN": "UNRANKED",
+}
 
 _SEVERITY_ALIASES = {"CRIT": "CRITICAL", "MED": "MEDIUM", "NOT_ASSESSED": "UNKNOWN"}
 _CONFIDENCE_ALIASES = {"CERTAIN": "HIGH", "MODERATE": "MEDIUM", "WEAK": "LOW"}
@@ -61,12 +71,16 @@ def normalize_finding(
     """Return a stable, bounded finding record without changing its risk rating."""
     if not isinstance(finding, dict):
         raise FindingSchemaError("each finding must be an object")
+    supplied_schema = finding.get("schema_version")
+    if supplied_schema not in (None, "1.0", FINDING_SCHEMA_VERSION):
+        raise FindingSchemaError("unsupported finding schema version")
     source_module = _text(module, "module", required=True)
     check = _text(finding.get("check", "UNKNOWN"), "check", required=True)
     status = _text(finding.get("status", "UNKNOWN"), "status") or "UNKNOWN"
     evidence = _text(finding.get("evidence", ""), "evidence")
     recommendation = _text(finding.get("recommendation", ""), "recommendation")
     severity = _level(finding.get("severity"), SEVERITIES, _SEVERITY_ALIASES)
+    review_priority = _PRIORITY_BY_SEVERITY[severity]
     confidence = _level(
         finding.get("confidence", default_confidence),
         CONFIDENCE_LEVELS,
@@ -86,8 +100,8 @@ def normalize_finding(
     digest = hashlib.sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()[:20]
-    return {
-        "schema_version": FINDING_SCHEMA_VERSION,
+    normalized = {
+        "schema_version": supplied_schema or FINDING_SCHEMA_VERSION,
         "finding_id": f"ARF-{digest}",
         "module": source_module,
         "check": check,
@@ -98,6 +112,18 @@ def normalize_finding(
         "evidence": evidence,
         "recommendation": recommendation,
     }
+    # Preserve the exact v1.0 shape so previously signed/exported records remain verifiable.
+    if supplied_schema == "1.0":
+        return normalized
+    normalized.update({
+        "severity_basis": "MODULE_ASSIGNED" if severity != "UNKNOWN" else "UNASSESSED",
+        "review_priority": review_priority,
+        "review_priority_note": (
+            "Triage ordering derived from the module-assigned severity only; it is not a composite risk score or proof of exploitability."
+        ),
+        "recommendation_status": "PRESENT" if recommendation else "MISSING",
+    })
+    return normalized
 
 
 def normalize_findings(

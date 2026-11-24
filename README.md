@@ -91,7 +91,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T improved HTTP header-value accuracy and response classification. Phase 2U is improving HTTP evidence traceability and report consistency.
+- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T improved HTTP header-value accuracy and response classification. Phase 2U improved HTTP evidence traceability and report consistency. Phase 2V adds conservative finding triage metadata and recommendation-presence reporting.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
@@ -156,3 +156,7 @@ Phase 2S extends the existing HTTP response-header review with conservative stat
 ### Milestone 2U: HTTP evidence quality and report consistency (development)
 Phase 2U attaches bounded response provenance and the relevant observed header values to HTTP findings, while redacting Set-Cookie values and CSP nonce/hash tokens. It adds regression coverage for conflicting header combinations, response evidence, and HTML/JSON/optional PDF generation. It does not add requests, expand scope, or alter authorization gates. See [Phase 2U HTTP evidence quality and report consistency](docs/PHASE2U_HTTP_EVIDENCE_REPORT_QUALITY.md).
 
+
+
+### Milestone 2V: finding quality and remediation triage (development)
+Phase 2V adds explicit severity provenance, a conservative review-priority tier derived only from the existing module-assigned severity, and a recommendation-presence indicator. Unknown severities remain UNRANKED; missing recommendations remain visible rather than being filled with invented advice. Review priority is a triage aid, not a composite risk score, confirmation of exploitability, or an automatic remediation instruction. JSON evidence and PDF/HTML report paths expose the additional metadata. No scan behavior, network requests, authorization gates or target scope are changed. See [Phase 2V finding quality and remediation triage](docs/PHASE2V_FINDING_QUALITY_REMEDIATION.md).

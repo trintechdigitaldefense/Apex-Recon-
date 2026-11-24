@@ -462,7 +462,10 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
             details.append(p("Module limitations: none reported.", "EngagementSmall"))
         story.extend(details)
 
-    story.extend([p("Consolidated Findings", "Heading2")])
+    story.extend([
+        p("Consolidated Findings", "Heading2"),
+        p("Review priority is derived from module-assigned severity alone. It is a triage aid, not a composite risk score or proof of exploitability.", "EngagementSmall"),
+    ])
     finding_rows = [[
         p("Module", "EngagementSmall"), p("Severity", "EngagementSmall"),
         p("Check / Status", "EngagementSmall"), p("Confidence", "EngagementSmall"),
@@ -472,12 +475,12 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
     for finding in record["evidence"]["findings"]:
         finding_rows.append([
             p(finding.get("module", ""), "EngagementSmall"),
-            p(finding.get("severity", ""), "EngagementSmall"),
+            p(str(finding.get("severity", "")) + " / " + str(finding.get("review_priority", "UNRANKED")), "EngagementSmall"),
             p(finding.get("check", "") + " / " + finding.get("status", ""), "EngagementSmall"),
             p(finding.get("confidence", "UNKNOWN"), "EngagementSmall"),
             p(finding.get("evidence_type", "UNKNOWN"), "EngagementSmall"),
             p(finding.get("evidence", ""), "EngagementSmall"),
-            p(finding.get("recommendation", ""), "EngagementSmall"),
+            p(str(finding.get("recommendation_status", "MISSING")) + ": " + str(finding.get("recommendation", "")), "EngagementSmall"),
         ])
     if len(finding_rows) == 1:
         finding_rows.append([p("No findings were supplied.", "EngagementSmall")] + [""] * 6)

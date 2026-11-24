@@ -26,6 +26,8 @@ on:
       - phase2r-http-redirect-hardening
       - phase2s-csp-policy-quality
       - phase2t-http-header-accuracy
+      - phase2u-http-evidence-report-quality
+      - phase2v-finding-quality-remediation
   pull_request:
     branches:
       - main
@@ -51,6 +53,8 @@ on:
       - phase2r-http-redirect-hardening
       - phase2s-csp-policy-quality
       - phase2t-http-header-accuracy
+      - phase2u-http-evidence-report-quality
+      - phase2v-finding-quality-remediation
 
 permissions:
   contents: read
