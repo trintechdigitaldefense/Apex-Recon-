@@ -255,6 +255,18 @@ def export_json(record: dict, directory: str | os.PathLike[str] = ".") -> str:
     return _write_exclusive(path, data)
 
 
+def _finding_severity_counts(findings: list[dict]) -> dict[str, int]:
+    """Count every normalized severity, retaining unavailable results as UNKNOWN."""
+    levels = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN")
+    counts = {level: 0 for level in levels}
+    for item in findings:
+        severity = str(item.get("severity", "UNKNOWN")).strip().upper()
+        if severity not in counts:
+            severity = "UNKNOWN"
+        counts[severity] += 1
+    return counts
+
+
 def generate_pdf_bytes(record: dict) -> bytes:
     """Render a self-contained PDF in memory; requires optional ReportLab."""
     try:
@@ -311,8 +323,7 @@ def generate_pdf_bytes(record: dict) -> bytes:
     ]))
     story.extend([table, Paragraph("Executive Summary", styles["ApexHead"])])
     findings = evidence.get("findings", [])
-    counts = {level: sum(1 for item in findings if str(item.get("severity", "")).upper() == level)
-              for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")}
+    counts = _finding_severity_counts(findings)
     story.append(p("Finding counts: " + " | ".join(f"{key}: {value}" for key, value in counts.items())))
     story.append(p("Review priority is derived from module-assigned severity alone. It is a triage aid, not a composite risk score or proof of exploitability.", "ApexSmall"))
     story.append(Paragraph("Observed Findings", styles["ApexHead"]))
