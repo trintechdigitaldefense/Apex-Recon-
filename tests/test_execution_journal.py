@@ -147,6 +147,18 @@ class ExecutionJournalTests(unittest.TestCase):
             self.assertFalse(report["valid"])
             self.assertIn("hash mismatch", report["error"])
 
+    def test_finalized_journal_rejects_additional_events_without_corruption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED")
+            journal.finalize()
+            with self.assertRaises(ExecutionJournalError):
+                journal.finalize()
+            report = inspect_execution_journal(path)
+            self.assertTrue(report["valid"])
+            self.assertEqual(report["execution_status"], "FINALIZED")
+
     def test_finalization_failure_is_explicit(self):
         with tempfile.TemporaryDirectory() as directory:
             path, journal, _ = self._create(directory, [MODULES[0]])
