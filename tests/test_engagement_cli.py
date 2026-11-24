@@ -84,7 +84,7 @@ class ModuleAssemblyTests(unittest.TestCase):
                 self.assertEqual(entries[0]["status"], "FAILED")
                 self.assertEqual(entries[0]["findings"], [])
 
-    def test_invalid_module_output_isolated_as_failed_without_losing_other_results(self):
+    def test_invalid_module_output_isolated_and_engagement_remains_verifiable(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
         outcomes = {
             MODULE_NAMES[0]: {
@@ -102,6 +102,27 @@ class ModuleAssemblyTests(unittest.TestCase):
         self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "FAILED")
         self.assertEqual(by_name[MODULE_NAMES[2]]["findings"], [])
         self.assertEqual(by_name[MODULE_NAMES[1]]["status"], "NOT_RUN")
+        record = build_engagement_record({"engagement_name": "failure isolation"}, entries)
+        self.assertEqual(record["engagement"]["status"], "PARTIAL")
+        self.assertTrue(verify_engagement_record(record))
+
+    def test_combined_finding_limit_is_enforced_per_module(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
+        outcomes = {
+            MODULE_NAMES[0]: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [{"check": "A", "status": "OBSERVED"} for _ in range(1500)],
+            },
+            MODULE_NAMES[1]: {
+                "status": "COMPLETED", "target_scope": {"network": "192.0.2.0/24"},
+                "findings": [{"check": "B", "status": "OBSERVED"} for _ in range(600)],
+            },
+        }
+        entries = assemble_module_results(selected, outcomes)
+        self.assertEqual(entries[0]["status"], "COMPLETED")
+        self.assertEqual(entries[1]["status"], "FAILED")
+        self.assertEqual(len(entries[0]["findings"]), 1500)
+        self.assertEqual(entries[1]["findings"], [])
 
     def test_invalid_duration_and_timestamp_fail_only_the_affected_module(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
