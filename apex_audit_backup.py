@@ -147,9 +147,14 @@ def verify_audit_backup(backup_path, checkpoint_path):
         checkpoint = json.loads(checkpoint_bytes.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AuditBackupError("backup or checkpoint is not valid UTF-8 JSON") from exc
-    if not isinstance(backup, dict) or _canonical(backup) + b"\n" != backup_bytes:
+    try:
+        backup_canonical = _canonical(backup) + b"\\n" if isinstance(backup, dict) else None
+        checkpoint_canonical = _canonical(checkpoint) + b"\\n" if isinstance(checkpoint, dict) else None
+    except (TypeError, ValueError) as exc:
+        raise AuditBackupError("backup or checkpoint contains invalid JSON values") from exc
+    if backup_canonical != backup_bytes:
         raise AuditBackupError("backup is not canonical JSON")
-    if not isinstance(checkpoint, dict) or _canonical(checkpoint) + b"\n" != checkpoint_bytes:
+    if checkpoint_canonical != checkpoint_bytes:
         raise AuditBackupError("checkpoint is not canonical JSON")
     backup_keys = {"schema_version", "created_at", "audit_entries", "audit_head_hash", "audit_sha256", "audit_jsonl_base64"}
     checkpoint_keys = {"schema_version", "created_at", "backup_sha256", "audit_sha256", "audit_entries", "audit_head_hash"}
