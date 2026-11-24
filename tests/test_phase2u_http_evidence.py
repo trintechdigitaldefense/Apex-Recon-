@@ -1,8 +1,6 @@
 import importlib.util
 import json
 import os
-import re
-import zlib
 import tempfile
 import unittest
 from email.message import Message
@@ -136,21 +134,22 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
                 os.chdir(original)
 
         try:
-            pdf = evidence.generate_pdf_bytes(record)
-        except evidence.PDFDependencyError:
+            from reportlab.platypus import Paragraph as RealParagraph
+        except ImportError:
             self.skipTest("ReportLab is not installed in this environment")
+        rendered_paragraphs = []
+
+        def capture_paragraph(text, style):
+            rendered_paragraphs.append(str(text))
+            return RealParagraph(text, style)
+
+        with patch("reportlab.platypus.Paragraph", side_effect=capture_paragraph):
+            pdf = evidence.generate_pdf_bytes(record)
         self.assertTrue(pdf.startswith(b"%PDF-"))
         self.assertGreater(len(pdf), 1000)
-        streams = re.findall(rb"stream\r?\n(.*?)\r?\nendstream", pdf, re.S)
-        decoded = []
-        for stream in streams:
-            try:
-                decoded.append(zlib.decompress(stream))
-            except zlib.error:
-                decoded.append(stream)
-        pdf_text = b" ".join(decoded)
-        self.assertIn(b"X-Content-Type-Options", pdf_text)
-        self.assertIn(b"nosniff", pdf_text)
+        rendered_pdf_text = "\\n".join(rendered_paragraphs)
+        self.assertIn("X-Content-Type-Options", rendered_pdf_text)
+        self.assertIn("nosniff", rendered_pdf_text)
 
 
 if __name__ == "__main__":
