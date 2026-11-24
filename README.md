@@ -231,3 +231,7 @@ Phase 2AK adds isolated child-process termination tests at three publication bou
 
 ### Milestone 2AL: local filesystem capability probe (development)
 Phase 2AL adds a non-destructive local probe for same-directory hard links, directory fsync, private file mode, and ApexRecon atomic artifact publication. It uses a small temporary workspace beneath an existing selected directory, reports available space where supported, and removes its own workspace. It does not consume storage, modify existing files, access networks, or establish power-loss durability. See [Phase 2AL filesystem capability probe](docs/PHASE2AL_FILESYSTEM_CAPABILITY_PROBE.md).
+
+
+### Milestone 2AM: controlled power-loss validation protocol (development)
+Phase 2AM turns the recovery drill guidance into a structured, repeatable protocol for actual guest-VM power interruption. It defines staging, post-publication, backup/checkpoint, restore and completed-artifact scenarios; requires disposable VM snapshots, synthetic data, guest-only power-off, at least three runs per scenario, and recorded filesystem/hash evidence. The protocol is not a claim that physical drills have passed. CI, process termination tests and filesystem capability probes are not substitutes for actual power-loss observations. See [Phase 2AM controlled power-loss validation](docs/PHASE2AM_CONTROLLED_POWER_LOSS_VALIDATION.md).
