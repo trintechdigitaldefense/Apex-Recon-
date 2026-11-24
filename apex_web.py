@@ -364,6 +364,7 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
     target = escape(str(result.get("target", "Unknown")))
     path = escape(str(result.get("path", "/")))
     timestamp = escape(now.isoformat(timespec="seconds"))
+    assessment_id = escape(str(result.get("assessment_id", "Not assigned")))
     counts = {level: sum(1 for item in findings if str(item.get("severity", "INFO")).upper() == level)
               for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")}
 
@@ -432,7 +433,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <header>
 <div class="brand">APEXRECON | TRINTECH DIGITAL DEFENSE</div>
 <h1>HTTP Security Assessment Report</h1>
-<div class="meta">Target: {target} &nbsp;|&nbsp; Path: {path}<br>Generated: {timestamp} &nbsp;|&nbsp; Duration: {duration:.2f}s</div>
+<div class="meta">Assessment ID: {assessment_id}<br>Target: {target} &nbsp;|&nbsp; Path: {path}<br>Generated: {timestamp} &nbsp;|&nbsp; Duration: {duration:.2f}s</div>
 </header>
 <div class="notice"><strong>Scope and interpretation:</strong> This is a bounded HTTP response-configuration assessment, not a comprehensive vulnerability scan or penetration test. Observed missing headers and disclosures are not proof of exploitable vulnerabilities. Review findings in application context.</div>
 <section class="stats">{summary_cards}</section>
