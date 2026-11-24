@@ -11,8 +11,6 @@ on:
       - phase2c-tls-assessment
       - phase2d-cms-technology-fingerprinting
       - phase2e-professional-evidence-reporting
-      - phase2d-cms-technology-fingerprinting
-      - phase2e-professional-evidence-reporting
   pull_request:
     branches:
       - main
