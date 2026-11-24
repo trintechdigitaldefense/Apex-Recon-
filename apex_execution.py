@@ -168,7 +168,7 @@ def _verify_bytes(data: bytes) -> dict:
                             raise ValueError("artifact checksum has no artifact path")
                     else:
                         if (not isinstance(artifact_file, str) or Path(artifact_file).name != artifact_file
-                                or not artifact_file.startswith("apex_execution_")
+                                or not artifact_file.endswith(".json")
                                 or not isinstance(artifact_sha256, str)
                                 or len(artifact_sha256) != 64
                                 or any(char not in "0123456789abcdef" for char in artifact_sha256)):
@@ -416,7 +416,7 @@ class ExecutionJournal:
                 payload = (json.dumps(
                     payload_object, sort_keys=True, separators=(",", ":"),
                     ensure_ascii=False, allow_nan=False,
-                ) + "\\n").encode("utf-8")
+                ) + "\n").encode("utf-8")
             except (TypeError, ValueError) as exc:
                 raise ExecutionJournalError("module outcome is not safely serializable") from exc
             module_index = MODULES.index(module) + 1 if module in MODULES else 0
