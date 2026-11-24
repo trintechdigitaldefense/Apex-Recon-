@@ -78,11 +78,11 @@ def _verify_bytes(data: bytes) -> dict:
             "size_limit", 1, 0,
         )
 
-    last_newline = data.rfind(b"\\n")
+    last_newline = data.rfind(b"\n")
     complete_end = last_newline + 1 if last_newline >= 0 else 0
     complete_data = data[:complete_end]
     trailing = data[complete_end:]
-    lines = complete_data[:-1].split(b"\\n") if complete_data else []
+    lines = complete_data[:-1].split(b"\n") if complete_data else []
     if len(lines) > MAX_AUDIT_EVENTS:
         return _verification_result(
             data, False, 0, None, "audit trail exceeds event limit",
