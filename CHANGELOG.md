@@ -1,3 +1,19 @@
+## [2.0.1-dev] — Phase 2Q signed audit backup checkpoints
+
+### Added
+- Added detached Ed25519 signatures over exact Phase 2P canonical checkpoint bytes, binding the signature to the backup digest and verified audit-chain metadata.
+- Added offline verification of the backup/checkpoint pair, signature envelope, public-key fingerprint and independently trusted fingerprint.
+- Reused encrypted Ed25519 private keys from Phase 2N; private-key files must be regular, non-symlink files with owner-only POSIX permissions.
+- Added CLI options 8–9 to sign and verify audit backup checkpoints.
+- Added regression tests for valid signatures, checkpoint and envelope tampering, wrong keys/fingerprints, incorrect passphrases, restrictive permissions and exclusive signature creation.
+
+### Boundaries
+- Public-key identity must be trusted out of band; a signature proves possession of a key, not a human or organization.
+- Signatures authenticate the checkpoint and backup digest, not the truthfulness or completeness of original audit events.
+- Local signing time is metadata, not a trusted timestamp.
+- No scan probes, network requests, target-scope changes, background work or recurring monitoring.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 ## [2.0.1-dev] — Phase 2P evidence export, checkpoints and recovery
 
 ### Added
