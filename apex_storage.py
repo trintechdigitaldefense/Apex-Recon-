@@ -45,14 +45,20 @@ def write_exclusive_atomic(
             os.fchmod(fd, mode)
         with os.fdopen(fd, "wb") as handle:
             fd = -1
-            handle.write(data)
+            written = handle.write(data)
+            if written != len(data):
+                raise OSError("artifact staging write was incomplete")
             handle.flush()
             os.fsync(handle.fileno())
+
+        # Capture the staged inode before publication so cleanup can identify
+        # exactly our final path even if the staging name is later removed.
+        staged_info = temporary_path.stat()
 
         # Same-directory hard-link publication is atomic and create-only.
         # An existing file or symlink is never overwritten.
         os.link(temporary_path, destination)
-        published_info = temporary_path.stat()
+        published_info = staged_info
         temporary_path.unlink()
 
         # Persist the directory entry where the platform supports directory
