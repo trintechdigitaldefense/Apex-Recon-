@@ -7,6 +7,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.1-dev] — Phase 2D development
+
+### Added
+- Passive CMS fingerprints for WordPress, Joomla, Drupal, Shopify, Wix and Squarespace.
+- Frontend technology fingerprints for React, Vue.js, Angular, jQuery and Bootstrap.
+- Evidence markers, confidence labels and optional CMS version only when an explicit generator meta tag provides a numeric version.
+- Bounded HTML sampling from existing HTTP responses: 8 KiB per response, at most 16 KiB total across no more than two GET requests.
+- Fingerprint section in the escaped standalone HTTP HTML report.
+- Offline tests for fingerprint evidence, confidence, body-size bounds and report escaping.
+
+### Boundaries
+- No extra requests, URL paths, crawling, admin-path probes, fuzzing, authentication, exploitation or background monitoring.
+- Fingerprints are heuristic observations, not proof of installed components or a complete software inventory.
+- Phase 2D remains a draft and requires CI and phone validation; no live target testing is included.
+
 ## [2.0.1-dev] — Unreleased (R1 Source Recovery and Stabilization)
 
 ### Phase 2 — HTTP assessment milestone 2A
