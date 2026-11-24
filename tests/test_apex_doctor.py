@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -15,7 +16,7 @@ SPEC.loader.exec_module(doctor)
 class ApexDoctorTests(unittest.TestCase):
     def setUp(self):
         self.tools = {"dig", "whois", "curl", "nmap", "ip"}
-        self.packages = {"reportlab", "cryptography"}
+        self.packages = {"reportlab", "cryptography", "pip", "venv"}
 
     def lookup_tool(self, name):
         return f"/usr/bin/{name}" if name in self.tools else None
@@ -85,13 +86,16 @@ class ApexDoctorTests(unittest.TestCase):
 
     def test_json_mode_outputs_parseable_diagnostics(self):
         stream = io.StringIO()
-        with patch.object(doctor, "collect_diagnostics", return_value={
+        stub = {
             "python": {"version": "3.12.0", "supported": True, "minimum": "3.10"},
             "platform": {"system": "Linux", "termux": False},
-            "tools": {},
-            "python_packages": {},
-            "capabilities": {},
-        }):
+            "environment": {"executable": "python3", "virtual_environment": True,
+                            "pip_available": True, "venv_available": True},
+            "project": {"root": ".", "required_files": {}, "complete": True,
+                        "writable": True, "write_error": None},
+            "tools": {}, "python_packages": {}, "capabilities": {},
+        }
+        with patch.object(doctor, "collect_diagnostics", return_value=stub):
             with contextlib.redirect_stdout(stream):
                 result = doctor.main(["--json"])
         self.assertEqual(result, 0)
@@ -116,6 +120,43 @@ class ApexDoctorTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 result = doctor.main([])
         self.assertEqual(result, 0)
+
+    def test_project_layout_reports_missing_core_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = doctor.inspect_project(directory)
+        self.assertFalse(report["complete"])
+        self.assertTrue(report["writable"])
+        self.assertTrue(all(not present for present in report["required_files"].values()))
+
+    def test_project_write_probe_leaves_no_temporary_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = doctor.inspect_project(directory)
+            leftovers = list(Path(directory).glob(".apexrecon-write-check-*"))
+        self.assertTrue(report["writable"])
+        self.assertEqual(leftovers, [])
+
+    def test_project_write_failure_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(doctor.tempfile, "NamedTemporaryFile",
+                              side_effect=PermissionError("read only")):
+                report = doctor.inspect_project(directory)
+        self.assertFalse(report["writable"])
+        self.assertEqual(report["write_error"], "PermissionError")
+
+    def test_virtual_environment_detection(self):
+        report = self.diagnose(
+            python_version=(3, 12, 0),
+            python_prefix="/project/.venv",
+            python_base_prefix="/usr",
+        )
+        self.assertTrue(report["environment"]["virtual_environment"])
+
+    def test_report_explains_same_interpreter_and_storage_checks(self):
+        report = self.diagnose(python_version=(3, 12, 0))
+        output = doctor.render_report(report)
+        self.assertIn("Project directory write test: WRITABLE", output)
+        self.assertIn("same Python interpreter", output)
+        self.assertIn("source .venv/bin/activate", output)
 
 
 if __name__ == "__main__":
