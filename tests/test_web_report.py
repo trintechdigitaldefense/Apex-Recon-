@@ -18,6 +18,7 @@ class HTTPReportTests(unittest.TestCase):
         result = {
             "module": "HTTP Security Assessment",
             "target": "<script>alert(1)</script>",
+            "assessment_id": "test-assessment-123",
             "path": "/<img src=x>",
             "findings": [{
                 "check": "HEADER",
@@ -38,6 +39,7 @@ class HTTPReportTests(unittest.TestCase):
                 self.assertIn("&lt;img", content)
                 self.assertIn("&lt;svg", content)
                 self.assertIn("No exploitation performed.", content)
+                self.assertIn("test-assessment-123", content)
                 self.assertNotIn("<script>alert(1)</script>", content)
                 mode = stat.S_IMODE(Path(path).stat().st_mode)
                 if os.name == "posix":
