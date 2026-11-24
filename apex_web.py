@@ -754,15 +754,16 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
             severity = "INFO"
         rows.append(
             "<tr>"
-            f"<td><span class='severity {severity.lower()}'>{escape(severity)}</span></td>"
+            f"<td><span class='severity {severity.lower()}'>{escape(severity)}</span><br>Review: {escape(str(item.get('review_priority', 'UNRANKED')))}</td>"
             f"<td>{escape(str(item.get('check', 'UNKNOWN')))}</td>"
             f"<td>{escape(str(item.get('status', 'UNKNOWN')))}</td>"
             f"<td>{escape(str(item.get('evidence', '')))}</td>"
+            f"<td>{escape(str(item.get('recommendation_status', 'MISSING')))}</td>"
             f"<td>{escape(str(item.get('recommendation', '')))}</td>"
             "</tr>"
         )
     if not rows:
-        rows.append("<tr><td colspan='5'>No findings were returned. This is not proof of security.</td></tr>")
+        rows.append("<tr><td colspan='6'>No findings were returned. This is not proof of security.</td></tr>")
 
     limit_items = "".join(f"<li>{escape(str(item))}</li>" for item in limitations)
     fingerprints = result.get("fingerprints", [])
@@ -818,7 +819,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <section class="stats">{summary_cards}</section>
 <section class="panel">
 <h2>Observed Findings</h2>
-<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommended action</th></tr></thead>
+<div class="table-wrap"><table><thead><tr><th>Severity / review priority</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommendation status</th><th>Recommended action</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
 </section>
 <section class="panel"><h2>CMS and Technology Fingerprints</h2><p class="meta">Passive fingerprints from response headers and a capped HTML sample. Confidence describes fingerprint strength, not certainty that a component is installed.</p><div class="table-wrap"><table><thead><tr><th>Category</th><th>Observed</th><th>Confidence</th><th>Evidence markers</th><th>Source</th></tr></thead><tbody>{fingerprint_html}</tbody></table></div></section>
