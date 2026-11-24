@@ -11,10 +11,20 @@ import re
 from typing import Any
 
 
-FINDING_SCHEMA_VERSION = "1.0"
+FINDING_SCHEMA_VERSION = "1.1"
 SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"}
 CONFIDENCE_LEVELS = {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}
 EVIDENCE_TYPES = {"OBSERVATION", "INDICATOR", "INFERENCE", "UNKNOWN"}
+REVIEW_PRIORITIES = {"P1", "P2", "P3", "INFO", "UNRANKED"}
+
+_PRIORITY_BY_SEVERITY = {
+    "CRITICAL": "P1",
+    "HIGH": "P1",
+    "MEDIUM": "P2",
+    "LOW": "P3",
+    "INFO": "INFO",
+    "UNKNOWN": "UNRANKED",
+}
 
 _SEVERITY_ALIASES = {"CRIT": "CRITICAL", "MED": "MEDIUM", "NOT_ASSESSED": "UNKNOWN"}
 _CONFIDENCE_ALIASES = {"CERTAIN": "HIGH", "MODERATE": "MEDIUM", "WEAK": "LOW"}
@@ -67,6 +77,7 @@ def normalize_finding(
     evidence = _text(finding.get("evidence", ""), "evidence")
     recommendation = _text(finding.get("recommendation", ""), "recommendation")
     severity = _level(finding.get("severity"), SEVERITIES, _SEVERITY_ALIASES)
+    review_priority = _PRIORITY_BY_SEVERITY[severity]
     confidence = _level(
         finding.get("confidence", default_confidence),
         CONFIDENCE_LEVELS,
@@ -97,6 +108,12 @@ def normalize_finding(
         "evidence_type": evidence_type,
         "evidence": evidence,
         "recommendation": recommendation,
+        "severity_basis": "MODULE_ASSIGNED" if severity != "UNKNOWN" else "UNASSESSED",
+        "review_priority": review_priority,
+        "review_priority_note": (
+            "Triage ordering derived from the module-assigned severity only; it is not a composite risk score or proof of exploitability."
+        ),
+        "recommendation_status": "PRESENT" if recommendation else "MISSING",
     }
 
 
