@@ -124,6 +124,19 @@ class AuditBackupSigningTests(unittest.TestCase):
             )
         self.assertFalse(self.signature.exists())
 
+    def test_private_key_symlink_rejected(self):
+        link = Path(self.temp.name) / "private-link.pem"
+        try:
+            link.symlink_to(self.private)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlink creation unavailable")
+        with self.assertRaises(AuditBackupSignatureError):
+            sign_audit_backup_checkpoint(
+                self.backup, self.checkpoint, link,
+                "correct horse battery", self.signature,
+            )
+        self.assertFalse(self.signature.exists())
+
     def test_private_key_with_permissive_permissions_rejected(self):
         if os.name != "posix":
             self.skipTest("POSIX permission semantics required")
