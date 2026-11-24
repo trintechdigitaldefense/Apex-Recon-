@@ -23,8 +23,6 @@ on:
       - phase2o-evidence-audit-trail
       - phase2p-audit-backup-recovery
       - phase2q-signed-audit-backups
-      - phase2p-audit-backup-recovery
-      - phase2q-signed-audit-backups
   pull_request:
     branches:
       - main
@@ -45,6 +43,8 @@ on:
       - phase2m-evidence-integrity-verification
       - phase2n-cryptographic-evidence-signing
       - phase2o-evidence-audit-trail
+      - phase2p-audit-backup-recovery
+      - phase2q-signed-audit-backups
 
 permissions:
   contents: read
