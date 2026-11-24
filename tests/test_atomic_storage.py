@@ -13,10 +13,10 @@ class AtomicArtifactStorageTests(unittest.TestCase):
     def test_publishes_complete_private_file_and_cleans_staging_file(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "assessment.json"
-            returned = write_exclusive_atomic(destination, b'{"complete":true}\\n')
+            returned = write_exclusive_atomic(destination, b'{"complete":true}\n')
 
             self.assertEqual(returned, str(destination))
-            self.assertEqual(destination.read_bytes(), b'{"complete":true}\\n')
+            self.assertEqual(destination.read_bytes(), b'{"complete":true}\n')
             self.assertEqual(list(Path(directory).glob(".apexrecon-tmp-*")), [])
             if os.name == "posix":
                 self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
