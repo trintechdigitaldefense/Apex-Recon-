@@ -1247,7 +1247,7 @@ def unified_engagement_module():
         status = outcome.get("status") if isinstance(outcome, dict) else "NOT_RUN"
         if status not in {"COMPLETED", "PARTIAL", "FAILED", "NOT_RUN"}:
             status = "FAILED"
-        journal.finish_module(name, status)
+        journal.finish_module(name, status, outcome if isinstance(outcome, dict) else None)
 
     def report_module_error(name, exc):
         print(f"{YELLOW}[!] {name} stopped or could not be checkpointed: {type(exc).__name__}. Continuing with remaining selected modules where safe.{RESET}")
