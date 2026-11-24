@@ -21,6 +21,7 @@ on:
       - phase2m-evidence-integrity-verification
       - phase2n-cryptographic-evidence-signing
       - phase2o-evidence-audit-trail
+      - phase2p-audit-backup-recovery
   pull_request:
     branches:
       - main
@@ -63,7 +64,7 @@ jobs:
       - name: Install optional PDF and signing dependencies
         run: python -m pip install -r requirements-pdf.txt -r requirements-crypto.txt
       - name: Compile source and tests
-        run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
+        run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py apex_audit_backup.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
@@ -83,4 +84,4 @@ jobs:
           sudo apt-get install -y nmap whois dnsutils curl
       - name: Verify dependency detection and safe startup imports
         run: |
-          python -c "import apex_recon_v2 as apex; import apex_web; import apex_tls; import apex_fingerprint; import apex_evidence; import apex_findings; import apex_finding_adapters; import apex_engagement; import apex_engagement_cli; import apex_signing; import apex_audit; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"
+          python -c "import apex_recon_v2 as apex; import apex_web; import apex_tls; import apex_fingerprint; import apex_evidence; import apex_findings; import apex_finding_adapters; import apex_engagement; import apex_engagement_cli; import apex_signing; import apex_audit; import apex_audit_backup; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"

@@ -136,3 +136,7 @@ Phase 2N adds optional detached Ed25519 signatures for verified engagement JSON 
 
 ### Milestone 2O: evidence verification workflow and audit trail (draft PR)
 Phase 2O records key-pair creation, engagement signing and signature verification outcomes in a local JSONL audit trail. Events are hash-chained, sequentially numbered, timezone-aware and written with owner-only permissions on POSIX systems. The CLI can verify the complete chain and refuses to extend a damaged trail. This is tamper-evident local logging, not immutable storage; preserve chain-head checkpoints independently for stronger assurance. No scan behavior or target interaction changes. See [Phase 2O evidence verification and audit trail](docs/PHASE2O_EVIDENCE_VERIFICATION_AUDIT_TRAIL.md).
+
+
+### Milestone 2P: audit backup, independent checkpoints and recovery (draft PR)
+Phase 2P adds offline export of the Phase 2O audit trail into a portable JSON backup, a detached SHA-256 checkpoint, complete backup verification, and create-only restore with post-write verification. Store the checkpoint separately from the backup for recovery assurance. The checkpoint is unkeyed and is not immutable or a digital signature. No scan behavior, network requests or background work are introduced. See [Phase 2P audit backup and recovery](docs/PHASE2P_AUDIT_BACKUP_RECOVERY.md).

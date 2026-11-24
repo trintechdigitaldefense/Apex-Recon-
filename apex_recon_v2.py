@@ -1198,6 +1198,10 @@ def evidence_signing_module():
     from getpass import getpass
     from pathlib import Path
     from apex_audit import append_audit_event, verify_audit_trail, AuditTrailError
+    from apex_audit_backup import (
+        create_audit_backup, verify_audit_backup, restore_audit_backup,
+        AuditBackupError,
+    )
     from apex_signing import (
         generate_ed25519_keypair, sign_engagement_record,
         verify_engagement_signature, export_signature_envelope,
@@ -1223,6 +1227,9 @@ def evidence_signing_module():
     print("  [2] Sign an existing engagement JSON")
     print("  [3] Verify a detached engagement signature")
     print("  [4] Verify local evidence audit trail")
+    print("  [5] Export audit backup and detached checkpoint")
+    print("  [6] Verify audit backup and checkpoint")
+    print("  [7] Restore audit backup to a new file")
     print("  [0] Return to main menu")
     action = input("Select: ").strip()
 
@@ -1293,6 +1300,37 @@ def evidence_signing_module():
                 print(f"{YELLOW}[!] A valid local hash chain is tamper-evident, not immutable.{RESET}")
             else:
                 print(f"{RED}[!] AUDIT TRAIL INVALID: {result['error']}{RESET}")
+        elif action == "5":
+            backup_path = input("Audit backup output path [apexrecon_audit_backup.json]: ").strip()
+            checkpoint_path = input("Separate checkpoint output path [apexrecon_audit_checkpoint.json]: ").strip()
+            backup_path = backup_path or "apexrecon_audit_backup.json"
+            checkpoint_path = checkpoint_path or "apexrecon_audit_checkpoint.json"
+            result = create_audit_backup(audit_path, backup_path, checkpoint_path)
+            print(f"{GREEN}[+] Audit backup saved: {result['backup_path']}{RESET}")
+            print(f"{GREEN}[+] Detached checkpoint saved: {result['checkpoint_path']}{RESET}")
+            print(f"Events: {result['entries']} | Chain head: {result['head_hash']}")
+            print(f"Backup SHA-256: {result['backup_sha256']}")
+            print(f"{YELLOW}[!] Store the checkpoint separately from the backup and workstation.{RESET}")
+        elif action == "6":
+            backup_path = input("Audit backup path: ").strip()
+            checkpoint_path = input("Detached checkpoint path: ").strip()
+            if not backup_path or not checkpoint_path:
+                print(f"{YELLOW}[!] Both backup and checkpoint paths are required.{RESET}")
+                return
+            result = verify_audit_backup(backup_path, checkpoint_path)
+            print(f"{GREEN}[+] BACKUP VALID: {result['entries']} audit event(s) verified.{RESET}")
+            print(f"Chain head: {result['head_hash']}")
+            print(f"Backup SHA-256: {result['backup_sha256']}")
+        elif action == "7":
+            backup_path = input("Audit backup path: ").strip()
+            checkpoint_path = input("Detached checkpoint path: ").strip()
+            destination = input("New restore destination (must not exist): ").strip()
+            if not backup_path or not checkpoint_path or not destination:
+                print(f"{YELLOW}[!] Backup, checkpoint and destination paths are required.{RESET}")
+                return
+            result = restore_audit_backup(backup_path, checkpoint_path, destination)
+            print(f"{GREEN}[+] Audit trail restored and verified: {result['restored_path']}{RESET}")
+            print(f"Events: {result['entries']} | Chain head: {result['head_hash']}")
         elif action == "0":
             return
         else:

@@ -1,3 +1,19 @@
+## [2.0.1-dev] — Phase 2P evidence export, checkpoints and recovery
+
+### Added
+- Added portable JSON backup export for the Phase 2O JSONL audit trail, preserving exact source bytes and verified chain metadata.
+- Added a detached checkpoint containing the backup SHA-256, audit payload digest, event count and chain-head hash.
+- Added offline verification for canonical encoding, checkpoint match, payload digest, full audit-chain validity and metadata consistency.
+- Added create-only restore with exclusive file creation, owner-only POSIX permissions and post-write verification.
+- Added CLI options 5–7 for backup export, backup verification and restore.
+- Added offline tests for tampering, checkpoint mismatch, corrupted embedded chains, missing checkpoints and overwrite refusal.
+
+### Boundaries
+- Checkpoints are unkeyed SHA-256 references, not signatures or immutable storage; preserve them separately from backups.
+- Backup integrity does not prove source events were truthful or complete before checkpoint creation.
+- No scans, network requests, background work, recurring monitoring or target-scope changes.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 ## [2.0.1-dev] — Phase 2N cryptographic evidence signing and verification
 
 ### Added
