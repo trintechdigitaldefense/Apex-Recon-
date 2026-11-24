@@ -180,8 +180,8 @@ def _verify_bytes(data: bytes) -> dict:
                     if (module is not None or status is not None
                             or artifact_file is not None or artifact_sha256 is not None):
                         raise ValueError("finalization event cannot carry module state")
-                    if any(value == "STARTED" for value in states.values()):
-                        raise ValueError("cannot finalize while a module is still active")
+                    if any(value in {"STARTED", "NOT_STARTED"} for value in states.values()):
+                        raise ValueError("cannot finalize while selected modules remain unresolved")
                     finalized = "FINALIZED" if kind == "ENGAGEMENT_FINALIZED" else "FINALIZATION_FAILED"
                 else:
                     raise ValueError("unsupported event type")
