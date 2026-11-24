@@ -211,3 +211,7 @@ Phase 2AF improves offline verification of the local JSONL audit trail. Verifica
 
 ### Milestone 2AG: audit backup restoration assurance (development)
 Phase 2AG makes restoration use one captured backup/checkpoint byte pair: the exact backup bytes validated against the detached checkpoint are the source of the restored audit payload. Post-write checks compare byte length, SHA-256, event count and hash-chain head with the verified snapshot. Existing destinations remain create-only. This closes a verification/reopen gap but does not make backup/checkpoint creation a cross-file atomic transaction or prove audit-event truthfulness. See [Phase 2AG audit restore assurance](docs/PHASE2AG_AUDIT_RESTORE_ASSURANCE.md).
+
+
+### Milestone 2AH: atomic audit backup and restore publication (development)
+Phase 2AH routes each audit backup, detached checkpoint and restored audit trail through the existing same-directory atomic create-only publisher. Files are staged and synchronized before the final path is published, preventing partial final-path artifacts during an interrupted individual write. Fault-injection tests cover synchronization failures and interruption between the two separate backup/checkpoint publications. The pair is still not a cross-file transaction; an interruption between publications can leave an incomplete pair that fails verification and requires manual handling. See [Phase 2AH atomic audit backup publication](docs/PHASE2AH_ATOMIC_AUDIT_BACKUP_PUBLICATION.md).
