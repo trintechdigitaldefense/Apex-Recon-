@@ -140,3 +140,6 @@ Phase 2O records key-pair creation, engagement signing and signature verificatio
 
 ### Milestone 2P: audit backup, independent checkpoints and recovery (draft PR)
 Phase 2P adds offline export of the Phase 2O audit trail into a portable JSON backup, a detached SHA-256 checkpoint, complete backup verification, and create-only restore with post-write verification. Store the checkpoint separately from the backup for recovery assurance. The checkpoint is unkeyed and is not immutable or a digital signature. No scan behavior, network requests or background work are introduced. See [Phase 2P audit backup and recovery](docs/PHASE2P_AUDIT_BACKUP_RECOVERY.md).
+
+### Milestone 2Q: signed audit backup checkpoints (draft PR)
+Phase 2Q adds detached Ed25519 signatures over the exact canonical Phase 2P checkpoint bytes. Signing first verifies the backup/checkpoint pair; verification checks the backup chain, signature, public-key fingerprint and caller-supplied independently trusted fingerprint. Operators can use the encrypted Ed25519 private key from Phase 2N. A signature authenticates possession of the corresponding key, not a person, organization, event truthfulness or assessment accuracy. See [Phase 2Q signed audit backup checkpoints](docs/PHASE2Q_SIGNED_AUDIT_BACKUPS.md).
