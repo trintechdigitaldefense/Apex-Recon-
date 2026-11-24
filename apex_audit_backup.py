@@ -138,10 +138,9 @@ def create_audit_backup(audit_path, backup_path, checkpoint_path):
         "entries": backup["audit_entries"], "head_hash": backup["audit_head_hash"],
     }
 
-def verify_audit_backup(backup_path, checkpoint_path):
-    """Verify backup bytes against a separately retained checkpoint and audit chain."""
-    backup_bytes = _read_regular(backup_path, MAX_BACKUP_BYTES)
-    checkpoint_bytes = _read_regular(checkpoint_path, 64 * 1024)
+def _verify_audit_backup_bytes(backup_bytes, checkpoint_bytes):
+    """Verify one captured backup/checkpoint byte pair and return its audit payload."""
+
     try:
         backup = json.loads(backup_bytes.decode("utf-8"))
         checkpoint = json.loads(checkpoint_bytes.decode("utf-8"))
@@ -202,23 +201,45 @@ def verify_audit_backup(backup_path, checkpoint_path):
     return {
         "valid": True, "entries": audit_result["entries"], "head_hash": audit_result["head_hash"],
         "audit_sha256": audit_digest, "backup_sha256": backup_digest,
+        "_audit_data": audit_data,
     }
 
+
+def verify_audit_backup(backup_path, checkpoint_path):
+    """Verify backup bytes against a separately retained checkpoint and audit chain."""
+    verified = _verify_audit_backup_bytes(
+        _read_regular(backup_path, MAX_BACKUP_BYTES),
+        _read_regular(checkpoint_path, 64 * 1024),
+    )
+    verified.pop("_audit_data", None)
+    return verified
+
+
 def restore_audit_backup(backup_path, checkpoint_path, destination_path):
-    """Restore a verified backup to a new file; never overwrite existing evidence."""
-    verified = verify_audit_backup(backup_path, checkpoint_path)
-    backup = json.loads(_read_regular(backup_path, MAX_BACKUP_BYTES).decode("utf-8"))
-    audit_data = base64.b64decode(backup["audit_jsonl_base64"], validate=True)
+    """Restore the exact verified snapshot to a new file; never overwrite existing evidence."""
+    verified = _verify_audit_backup_bytes(
+        _read_regular(backup_path, MAX_BACKUP_BYTES),
+        _read_regular(checkpoint_path, 64 * 1024),
+    )
+    audit_data = verified["_audit_data"]
     _write_exclusive(destination_path, audit_data)
     restored = _read_regular(destination_path, MAX_AUDIT_BYTES)
+    restored_digest = hashlib.sha256(restored).hexdigest()
     result = _verify_bytes(restored)
-    if not result["valid"] or result["head_hash"] != verified["head_hash"]:
+    if (
+        len(restored) != len(audit_data)
+        or restored_digest != verified["audit_sha256"]
+        or not result["valid"]
+        or result["entries"] != verified["entries"]
+        or result["head_hash"] != verified["head_hash"]
+    ):
         try:
             Path(destination_path).unlink()
         except OSError:
             pass
-        raise AuditBackupError("restored audit trail failed post-write verification")
+        raise AuditBackupError("restored audit trail failed exact-byte and chain verification")
     return {
         "restored_path": str(destination_path), "entries": result["entries"],
-        "head_hash": result["head_hash"], "audit_sha256": hashlib.sha256(restored).hexdigest(),
+        "head_hash": result["head_hash"], "audit_sha256": restored_digest,
+        "restored_bytes": len(restored),
     }
