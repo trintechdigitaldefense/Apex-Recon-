@@ -88,7 +88,7 @@ class ApexDoctorTests(unittest.TestCase):
         stream = io.StringIO()
         stub = {
             "python": {"version": "3.12.0", "supported": True, "minimum": "3.10"},
-            "platform": {"system": "Linux", "termux": False},
+            "platform": {"system": "Linux", "supported": True, "termux": False},
             "environment": {"executable": "python3", "virtual_environment": True,
                             "pip_available": True, "venv_available": True},
             "project": {"root": ".", "required_files": {}, "complete": True,
