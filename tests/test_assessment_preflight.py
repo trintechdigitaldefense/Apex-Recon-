@@ -55,7 +55,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         runner.assert_not_called()
 
     def test_preflight_exception_fails_closed_and_prevents_runner(self):
-        runner = unittest.mock.Mock()
+        runner = Mock()
 
         def broken_diagnostics():
             raise OSError("synthetic probe failure")
@@ -66,7 +66,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         runner.assert_not_called()
 
     def test_successful_preflight_runs_module_once(self):
-        runner = unittest.mock.Mock()
+        runner = Mock()
         executed = apex.run_assessment_with_preflight(runner, ready_report)
         self.assertTrue(executed)
         runner.assert_called_once_with()
