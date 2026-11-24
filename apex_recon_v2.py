@@ -1524,7 +1524,7 @@ def run_assessment_with_preflight(runner, diagnostics_fn=None):
         for reason in result.get("reasons", []):
             print(f"    {YELLOW}- {reason}{RESET}")
         print(f"{GREY}No assessment module was started and no target was contacted.{RESET}")
-        input(f"\\n{GREY}Press Enter to return to the main menu...{RESET}")
+        input(f"\n{GREY}Press Enter to return to the main menu...{RESET}")
         return False
     runner()
     return True
