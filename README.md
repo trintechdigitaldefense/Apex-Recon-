@@ -215,3 +215,7 @@ Phase 2AG makes restoration use one captured backup/checkpoint byte pair: the ex
 
 ### Milestone 2AH: atomic audit backup and restore publication (development)
 Phase 2AH routes each audit backup, detached checkpoint and restored audit trail through the existing same-directory atomic create-only publisher. Files are staged and synchronized before the final path is published, preventing partial final-path artifacts during an interrupted individual write. Fault-injection tests cover synchronization failures and interruption between the two separate backup/checkpoint publications. The pair is still not a cross-file transaction; an interruption between publications can leave an incomplete pair that fails verification and requires manual handling. See [Phase 2AH atomic audit backup publication](docs/PHASE2AH_ATOMIC_AUDIT_BACKUP_PUBLICATION.md).
+
+
+### Milestone 2AI: controlled operational recovery drill runbooks (development)
+Phase 2AI defines controlled, offline drill procedures for process interruption, backup/checkpoint separation, synchronization failures, existing destinations, permissions, bounded storage exhaustion, unsupported hard links, interrupted restore, and disposable-VM power-loss testing. It establishes evidence and pass/fail criteria across Termux, proot and Linux. These are operator runbooks, not proof that physical drills have passed. Use disposable synthetic data only; never fill a primary device or interrupt a production system. See [Phase 2AI controlled recovery drill runbooks](docs/PHASE2AI_CONTROLLED_RECOVERY_DRILL_RUNBOOKS.md).
