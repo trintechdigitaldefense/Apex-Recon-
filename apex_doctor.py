@@ -124,6 +124,7 @@ def collect_diagnostics(
         },
         "platform": {
             "system": system,
+            "supported": system == "Linux",
             "termux": is_termux,
         },
         "environment": environment,
@@ -165,6 +166,7 @@ def render_report(report: dict) -> str:
         + ("[SUPPORTED]" if report["python"]["supported"] else "[UNSUPPORTED: requires 3.10+]"),
         f"Platform: {report['platform']['system']}"
         + (" (Termux)" if report["platform"]["termux"] else ""),
+        "  Platform support: " + ("SUPPORTED (Linux)" if report["platform"].get("supported") else "UNSUPPORTED (Linux/Termux required)"),
         "",
         "Python environment:",
         f"  Interpreter: {environment.get('executable', sys.executable)}",
@@ -245,6 +247,8 @@ def main(argv=None) -> int:
         print(render_report(report))
 
     if not report["python"]["supported"]:
+        return 1
+    if not report["platform"].get("supported", False):
         return 1
     project = report.get("project", {})
     if project and (not project.get("complete") or not project.get("writable")):

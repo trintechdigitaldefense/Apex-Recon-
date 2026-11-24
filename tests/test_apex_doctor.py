@@ -88,7 +88,7 @@ class ApexDoctorTests(unittest.TestCase):
         stream = io.StringIO()
         stub = {
             "python": {"version": "3.12.0", "supported": True, "minimum": "3.10"},
-            "platform": {"system": "Linux", "termux": False},
+            "platform": {"system": "Linux", "supported": True, "termux": False},
             "environment": {"executable": "python3", "virtual_environment": True,
                             "pip_available": True, "venv_available": True},
             "project": {"root": ".", "required_files": {}, "complete": True,
@@ -167,6 +167,38 @@ class ApexDoctorTests(unittest.TestCase):
         self.assertIn("Artifact directory write test: WRITABLE", output)
         self.assertIn("same Python interpreter", output)
         self.assertIn("source .venv/bin/activate", output)
+
+
+    def test_linux_platform_is_supported_including_termux_and_proot_kernel_profile(self):
+        for prefix in ("/usr", "/data/data/com.termux/files/usr"):
+            report = self.diagnose(
+                python_version=(3, 12, 0), system="Linux", prefix=prefix
+            )
+            self.assertTrue(report["platform"]["supported"])
+        self.assertTrue(self.diagnose(
+            python_version=(3, 12, 0), system="Linux",
+            prefix="/data/data/com.termux/files/usr"
+        )["platform"]["termux"])
+
+    def test_non_linux_platform_is_explicitly_unsupported(self):
+        for system in ("Windows", "Darwin"):
+            report = self.diagnose(
+                python_version=(3, 12, 0), system=system, prefix="/usr"
+            )
+            self.assertFalse(report["platform"]["supported"])
+            self.assertIn(
+                "UNSUPPORTED (Linux/Termux required)",
+                doctor.render_report(report),
+            )
+
+    def test_unsupported_platform_returns_failure(self):
+        report = self.diagnose(
+            python_version=(3, 12, 0), system="Windows", prefix="/usr"
+        )
+        with patch.object(doctor, "collect_diagnostics", return_value=report):
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = doctor.main([])
+        self.assertEqual(result, 1)
 
 
 if __name__ == "__main__":
