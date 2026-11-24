@@ -36,9 +36,11 @@ on:
       - phase2ab-installation-operational-reliability
       - phase2ac-crash-safe-artifact-publication
       - phase2ad-assessment-execution-recovery
+      - phase2ae-recovery-evidence-consistency
   pull_request:
     branches:
       - main
+      - phase2ae-recovery-evidence-consistency
       - r1-source-recovery-stabilization
       - r1-phase1-validation
       - phase2-http-assessment

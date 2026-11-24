@@ -199,3 +199,7 @@ Phase 2AC stages HTTP/TLS evidence and unified engagement JSON/PDF outputs in hi
 
 ### Milestone 2AD: assessment execution recovery and evidence checkpoints (development)
 Phase 2AD adds a private hash-chained execution journal to unified engagements. Each selected module is checkpointed before execution and its returned outcome is saved as an atomic private sidecar before the finish event. Operators can inspect interrupted/incomplete runs and verify recovered module evidence without automatically resuming network activity. Existing target prompts, authorization gates and assessment scope remain unchanged. See [Phase 2AD assessment execution recovery](docs/PHASE2AD_ASSESSMENT_EXECUTION_RECOVERY.md).
+
+
+### Milestone 2AE: recovered evidence and execution-state consistency (development)
+Phase 2AE rejects a recovered module artifact when the outcome's own status conflicts with the terminal status recorded in the execution journal. The same consistency check runs before a sidecar is written, preventing contradictory recovery evidence from being published. A mismatch leaves the module unresolved and the engagement incomplete. No assessment scope, target interaction, authorization gate, or automatic recovery behavior changes. See [Phase 2AE recovered evidence consistency](docs/PHASE2AE_RECOVERY_EVIDENCE_CONSISTENCY.md).
