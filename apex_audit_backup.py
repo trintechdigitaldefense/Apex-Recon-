@@ -8,6 +8,7 @@ import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from apex_audit import MAX_AUDIT_BYTES, _canonical, _verify_bytes
+from apex_storage import write_exclusive_atomic
 
 BACKUP_SCHEMA = "1.0"
 CHECKPOINT_SCHEMA = "1.0"
@@ -58,29 +59,11 @@ def _read_regular(path, limit):
         os.close(fd)
 
 def _write_exclusive(path, data):
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    """Publish complete owner-only bytes atomically without replacing evidence."""
     try:
-        fd = os.open(str(path), flags, 0o600)
-    except OSError as exc:
-        raise AuditBackupError(f"cannot create file exclusively: {exc}") from exc
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise AuditBackupError("destination is not a regular file")
-        if os.name == "posix":
-            os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "wb") as handle:
-            fd = -1
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except Exception:
-        if fd >= 0:
-            os.close(fd)
-        try:
-            Path(path).unlink()
-        except OSError:
-            pass
-        raise
+        write_exclusive_atomic(path, data, mode=0o600)
+    except (OSError, TypeError, ValueError) as exc:
+        raise AuditBackupError(f"cannot atomically publish file: {exc}") from exc
 
 def create_audit_backup(audit_path, backup_path, checkpoint_path):
     """Create a portable JSON backup and detached checkpoint, without overwrite."""
