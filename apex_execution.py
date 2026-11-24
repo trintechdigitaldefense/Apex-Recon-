@@ -19,6 +19,7 @@ from apex_storage import write_exclusive_atomic
 
 JOURNAL_SCHEMA = "1.0"
 MAX_JOURNAL_BYTES = 2 * 1024 * 1024
+MAX_MODULE_ARTIFACT_BYTES = 4 * 1024 * 1024
 MODULES = (
     "External Footprinting (OSINT)",
     "SMB Network Auditor",
@@ -269,7 +270,7 @@ def load_completed_module_artifacts(path: str | os.PathLike[str]) -> dict:
                         break
                     chunks.append(chunk)
                     total += len(chunk)
-                    if total > 4 * 1024 * 1024:
+                    if total > MAX_MODULE_ARTIFACT_BYTES:
                         raise ExecutionJournalError("module artifact exceeds size limit")
                 payload = b"".join(chunks)
             finally:
@@ -351,6 +352,8 @@ class ExecutionJournal:
             current = _verify_bytes(b"".join(chunks))
             if not current["valid"] or current["execution_id"] != self.execution_id:
                 raise ExecutionJournalError("refusing to extend an invalid or mismatched execution journal")
+            if current["execution_status"] in {"FINALIZED", "FINALIZATION_FAILED"}:
+                raise ExecutionJournalError("execution journal is already finalized")
             if event_type == "MODULE_STARTED":
                 if module not in current["module_states"] or current["module_states"][module] != "NOT_STARTED":
                     raise ExecutionJournalError("module cannot enter STARTED from its current state")
@@ -425,6 +428,8 @@ class ExecutionJournal:
                 ) + "\n").encode("utf-8")
             except (TypeError, ValueError) as exc:
                 raise ExecutionJournalError("module outcome is not safely serializable") from exc
+            if len(payload) > MAX_MODULE_ARTIFACT_BYTES:
+                raise ExecutionJournalError("module outcome exceeds the recovery artifact size limit")
             module_index = MODULES.index(module) + 1 if module in MODULES else 0
             artifact_file = f"{self.path.stem}_module_{module_index}.json"
             try:
