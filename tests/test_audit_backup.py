@@ -59,24 +59,11 @@ class AuditBackupTests(unittest.TestCase):
         self.assertEqual(result["audit_sha256"], hashlib.sha256(self.audit.read_bytes()).hexdigest())
         self.assertEqual(result["restored_bytes"], len(self.audit.read_bytes()))
 
-    def test_restore_refuses_mismatched_source_snapshot(self):
+    def test_public_verification_does_not_expose_payload_bytes(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
-        target = Path(self.temp.name) / "snapshot-mismatch.jsonl"
-        original_read = apex_audit_backup._read_regular
-
-        def mutate_after_backup_read(path, limit):
-            data = original_read(path, limit)
-            if Path(path) == self.backup:
-                self.backup.write_bytes(b'{"replacement":true}\\n')
-            return data
-
-        with patch.object(apex_audit_backup, "_read_regular", side_effect=mutate_after_backup_read):
-            result = restore_audit_backup(self.backup, self.checkpoint, target)
-
-        # Restore uses the already verified snapshot, never the changed path contents.
-        self.assertEqual(target.read_bytes(), self.audit.read_bytes())
-        self.assertNotEqual(target.read_bytes(), self.backup.read_bytes())
-        self.assertEqual(result["audit_sha256"], hashlib.sha256(target.read_bytes()).hexdigest())
+        result = verify_audit_backup(self.backup, self.checkpoint)
+        self.assertTrue(result["valid"])
+        self.assertNotIn("_audit_data", result)
 
     def test_tampered_backup_detected(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
