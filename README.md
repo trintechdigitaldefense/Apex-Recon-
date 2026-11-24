@@ -185,3 +185,7 @@ Phase 2Y aligns individual assessment PDF severity summaries with the existing H
 
 ### Milestone 2Z: installation preflight and environment diagnostics (development)
 Phase 2Z adds an offline diagnostic for Python support, external command availability, optional PDF/signing dependencies, and the ApexRecon capabilities each enables. It provides Termux/Linux installation guidance and text/JSON output without installing packages or running assessment commands. HTTP/TLS assessment remains usable when unrelated OSINT/SMB tools are absent. No scan behavior or authorization gates change. See [Phase 2Z installation preflight](docs/PHASE2Z_INSTALLATION_PREFLIGHT.md).
+
+
+### Milestone 2AA: capability-aware startup (development)
+Phase 2AA makes startup dependency reporting feature-specific. Missing Nmap prevents SMB assessment from running and records the module as UNAVAILABLE in unified engagements; missing unrelated tools do not block HTTP/TLS. OSINT is labelled PARTIAL when individual collection tools are missing, and signing is clearly disabled when cryptography is unavailable. No scan scope, request behavior, or authorization gates change. See [Phase 2AA capability-aware startup](docs/PHASE2AA_CAPABILITY_AWARE_STARTUP.md).
