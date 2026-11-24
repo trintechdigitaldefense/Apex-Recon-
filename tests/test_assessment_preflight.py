@@ -49,7 +49,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         runner = Mock()
         report = ready_report()
         report["storage"]["compatible"] = False
-        with patch("builtins.print"):
+        with patch("builtins.print"), patch("builtins.input", return_value=""):
             executed = apex.run_assessment_with_preflight(runner, lambda: report)
         self.assertFalse(executed)
         runner.assert_not_called()
@@ -60,7 +60,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         def broken_diagnostics():
             raise OSError("synthetic probe failure")
 
-        with patch("builtins.print"):
+        with patch("builtins.print"), patch("builtins.input", return_value=""):
             executed = apex.run_assessment_with_preflight(runner, broken_diagnostics)
         self.assertFalse(executed)
         runner.assert_not_called()
