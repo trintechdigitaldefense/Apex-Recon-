@@ -21,7 +21,7 @@ from apex_fingerprint import fingerprint
 USER_AGENT = "ApexRecon/2.1-dev (+authorized security assessment)"
 DEFAULT_TIMEOUT = 8.0
 MAX_TIMEOUT = 20.0
-MAX_RESPONSE_BYTES = 16384  # Hard cap on HTML bytes read for passive fingerprinting.
+MAX_RESPONSE_BYTES = 8192  # Per-response cap; at most two responses are read.
 
 
 class AssessmentInputError(ValueError):
@@ -324,7 +324,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         "fingerprints": fingerprints,
         "limitations": [
             "One URL path only; no crawling or common-path discovery.",
-            f"At most two read-only GET requests; at most {MAX_RESPONSE_BYTES} HTML bytes are read for passive fingerprinting.",
+            f"At most two read-only GET requests; at most {MAX_RESPONSE_BYTES} HTML bytes per response (16 KiB total) are read for passive fingerprinting.",
             "CMS and technology fingerprints are heuristic observations, not proof of installed components or versions.",
             "Header presence is not proof that a policy is correctly configured or effective.",
             "No vulnerability exploitation or authenticated workflow testing is performed.",
