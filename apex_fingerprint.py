@@ -71,18 +71,32 @@ def fingerprint(headers: Any, body: bytes) -> list[dict]:
     }
     for cms, checks in cms_rules.items():
         markers = [label for label, present in checks if present]
-        generator = re.search(
-            r'<meta\b[^>]*\bname\s*=\s*["\']generator["\'][^>]*\bcontent\s*=\s*["\']'
-            + re.escape(cms) + r'(?:\s+([^"\']+))?',
-            html, re.I,
-        )
-        if generator:
+        # HTML attribute order is not significant. Parse quoted name/content
+        # attributes independently instead of assuming name precedes content.
+        generator_content = None
+        for tag in re.findall(r"<meta\b[^>]*>", html, re.I):
+            attributes = {
+                name.lower(): value
+                for name, value in re.findall(
+                    r"""([a-zA-Z_:][a-zA-Z0-9_.:-]*)\s*=\s*(["'])(.*?)\2""",
+                    tag,
+                    re.I,
+                )
+            }
+            if attributes.get("name", "").strip().lower() == "generator":
+                content = attributes.get("content", "").strip()
+                if content.lower() == cms.lower() or content.lower().startswith(cms.lower() + " "):
+                    generator_content = content
+                    break
+        if generator_content:
             markers.append("CMS generator meta tag")
         if markers:
-            confidence = "high" if generator or len(markers) >= 2 else "low"
+            # A self-declared generator tag is easy to spoof. Require at least
+            # two independent markers for HIGH confidence.
+            confidence = "high" if len(markers) >= 2 else ("medium" if generator_content else "low")
             version = None
-            if generator and generator.group(1):
-                candidate = generator.group(1).strip()
+            if generator_content:
+                candidate = generator_content[len(cms):].strip()
                 if re.fullmatch(r"v?\d+(?:\.\d+){0,3}(?:[-+][a-z0-9.-]+)?", candidate, re.I):
                     version = candidate
             add(cms, "CMS", markers, confidence, version)
@@ -116,7 +130,7 @@ def fingerprint(headers: Any, body: bytes) -> list[dict]:
     server = _header(headers, "Server")
     powered = _header(headers, "X-Powered-By")
     if server:
-        add(server[:120], "Server header", ["Server response header"], "observed")
+        add(server[:120], "Server header", ["Server response header"], "low")
     if powered:
-        add(powered[:120], "Application header", ["X-Powered-By response header"], "observed")
+        add(powered[:120], "Application header", ["X-Powered-By response header"], "low")
     return results
