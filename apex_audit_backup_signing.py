@@ -42,6 +42,8 @@ def _crypto():
 
 
 def _read_regular(path, limit, private=False):
+    if os.path.islink(path):
+        raise AuditBackupSignatureError("symlink paths are not accepted for key or metadata files")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(str(path), flags)
