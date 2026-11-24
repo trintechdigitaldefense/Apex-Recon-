@@ -8,6 +8,7 @@ import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from apex_audit import MAX_AUDIT_BYTES, _canonical, _verify_bytes
+from apex_storage import write_exclusive_atomic
 
 BACKUP_SCHEMA = "1.0"
 CHECKPOINT_SCHEMA = "1.0"
@@ -58,29 +59,12 @@ def _read_regular(path, limit):
         os.close(fd)
 
 def _write_exclusive(path, data):
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    """Atomically publish complete owner-only bytes without overwriting."""
     try:
-        fd = os.open(str(path), flags, 0o600)
-    except OSError as exc:
-        raise AuditBackupError(f"cannot create file exclusively: {exc}") from exc
-    try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise AuditBackupError("destination is not a regular file")
-        if os.name == "posix":
-            os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "wb") as handle:
-            fd = -1
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except Exception:
-        if fd >= 0:
-            os.close(fd)
-        try:
-            Path(path).unlink()
-        except OSError:
-            pass
-        raise
+        return write_exclusive_atomic(path, data, mode=0o600)
+    except Exception as exc:
+        raise AuditBackupError(f"cannot atomically publish audit artifact: {exc}") from exc
+
 
 def create_audit_backup(audit_path, backup_path, checkpoint_path):
     """Create a portable JSON backup and detached checkpoint, without overwrite."""
@@ -120,18 +104,24 @@ def create_audit_backup(audit_path, backup_path, checkpoint_path):
         "audit_head_hash": backup["audit_head_hash"],
     }
     checkpoint_bytes = _canonical(checkpoint) + b"\n"
-    backup_written = False
+    backup_published = False
     try:
         _write_exclusive(backup_path, backup_bytes)
-        backup_written = True
+        backup_published = True
         _write_exclusive(checkpoint_path, checkpoint_bytes)
-    except Exception:
-        if backup_written:
-            try:
-                Path(backup_path).unlink()
-            except OSError:
-                pass
-        raise
+    except Exception as exc:
+        if backup_published:
+            # Preserve the complete backup. A crash or checkpoint-write failure
+            # can leave an orphaned pair, but deleting by pathname could remove
+            # a file another process replaced. The operator can inspect it and
+            # create a checkpoint only through a separately reviewed workflow.
+            raise AuditBackupError(
+                "backup was published, but checkpoint publication failed; "
+                "preserve the backup as an incomplete pair and investigate before retrying"
+            ) from exc
+        if isinstance(exc, AuditBackupError):
+            raise
+        raise AuditBackupError(f"audit backup publication failed: {exc}") from exc
     return {
         "backup_path": str(backup_path), "checkpoint_path": str(checkpoint_path),
         "backup_sha256": backup_digest, "audit_sha256": backup["audit_sha256"],
