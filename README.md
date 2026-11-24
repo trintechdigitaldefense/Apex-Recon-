@@ -6,7 +6,7 @@
 
 ## Current development status
 
-The R1 branches restore and stabilize the last complete executable v2.0 baseline. The historical v2.1.0 entry point on `main` was incomplete; this development branch is rebuilding web-assessment capabilities in separately tested stages rather than claiming the missing v2.1 features are operational.
+The R1 branches restore and stabilize the last complete executable v2.0 baseline. The historical v2.1.0 entry point on `main` was incomplete; the development branches are rebuilding web-assessment capabilities in separately tested stages rather than claiming missing features are operational.
 
 ## Available recovered modules
 
@@ -31,7 +31,7 @@ A separate standard-library engine in `apex_web.py` performs up to two read-only
 - Secure, HttpOnly and SameSite attributes on observed cookies
 - Server and X-Powered-By disclosure
 
-Milestone 2A is integrated into the interactive CLI as menu option 3 and writes a dedicated, self-contained HTML assessment report. The engine does not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. TLS certificate/protocol checks and CMS identification are later milestones. The HTTP CLI/report integration is in Phase 2B. Phase 2C adds one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting in a separate menu option. Both milestones remain development drafts until reviewed and validated.
+Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Neither module crawls, fuzzes, submits forms, authenticates, exploits, or performs background monitoring. CMS identification remains a later milestone. The HTTP and TLS changes remain stacked development drafts until reviewed and validated.
 
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
@@ -49,7 +49,7 @@ See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.
 - Python 3.10 or newer
 - Linux or Termux environment
 - Existing recovered modules require `nmap`, `whois`, `dig` (dnsutils), and `curl`.
-- The new HTTP assessment engine uses only the Python standard library.
+- The HTTP and TLS assessment engines use only the Python standard library.
 
 ## Run recovered CLI
 
@@ -74,7 +74,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 
 ## Current limitations
 
-- The v2.1 web assessment engine is being reconstructed in stages; only the isolated HTTP-header milestone is present in this branch.
+- The v2.1 web assessment engine is being reconstructed in stages; HTTP headers and a single verified TLS handshake are implemented in separate development milestones.
 - The HTTP and TLS CLI/report work is in stacked draft PRs and has not been merged or phone-validated.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS fingerprinting and technology identification are not included yet.
@@ -89,3 +89,5 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 - [Phase 2 HTTP assessment scope](docs/PHASE2_HTTP_ASSESSMENT.md)
 
 No merge, production release, or client deployment is authorized by this development branch.
+
+- [Phase 2C verified TLS assessment scope](docs/PHASE2C_TLS_ASSESSMENT.md)
