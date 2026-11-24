@@ -7,6 +7,7 @@ created exclusively with owner-only permissions on POSIX systems.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import stat
@@ -45,19 +46,64 @@ def _clean_text(value: Any, limit: int = 4000) -> str:
 
 
 def _safe_url(value: Any) -> str:
-    """Keep URL evidence free of query parameters and fragments."""
+    """Remove URL queries, fragments, and embedded credentials before export."""
     raw = _clean_text(value, 2000)
     try:
         parsed = urlsplit(raw)
-        if parsed.scheme and parsed.netloc:
-            return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", "", ""))
+        hostname = parsed.hostname
+        safe_netloc = ""
+        if hostname:
+            host = f"[{hostname}]" if ":" in hostname else hostname
+            try:
+                port = parsed.port
+            except ValueError:
+                port = None
+            safe_netloc = host + (f":{port}" if port is not None else "")
+        return urlunsplit((parsed.scheme.lower(), safe_netloc, parsed.path, "", ""))
     except ValueError:
-        pass
-    return raw
+        # Fail closed for malformed URL syntax: never retain query/fragment data.
+        return raw.split("#", 1)[0].split("?", 1)[0]
+
+
 
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def verify_evidence_record(record: Any) -> bool:
+    """Return True only when a versioned record has a valid UUID and checksum."""
+    if not isinstance(record, dict) or record.get("schema_version") != SCHEMA_VERSION:
+        return False
+    assessment = record.get("assessment")
+    integrity = record.get("integrity")
+    if not isinstance(assessment, dict) or not isinstance(integrity, dict):
+        return False
+    try:
+        parsed_id = uuid.UUID(str(assessment.get("id", "")))
+    except (ValueError, TypeError, AttributeError):
+        return False
+    if str(parsed_id) != str(assessment.get("id", "")).lower():
+        return False
+    if integrity.get("algorithm") != "SHA-256":
+        return False
+    supplied = integrity.get("assessment_sha256")
+    if not isinstance(supplied, str) or len(supplied) != 64:
+        return False
+    if any(char not in "0123456789abcdef" for char in supplied.lower()):
+        return False
+    unsigned = dict(record)
+    unsigned.pop("integrity", None)
+    try:
+        expected = hashlib.sha256(_canonical_json(unsigned)).hexdigest()
+    except (TypeError, ValueError):
+        return False
+    return hmac.compare_digest(expected, supplied.lower())
+
+
+def _require_valid_evidence_record(record: Any) -> None:
+    if not verify_evidence_record(record):
+        raise EvidenceExportError("invalid or checksum-mismatched ApexRecon evidence record")
 
 
 def build_evidence_record(
@@ -88,6 +134,11 @@ def build_evidence_record(
     now = generated_at or _utc_now()
     if now.tzinfo is None:
         raise EvidenceExportError("generated_at must be timezone-aware")
+    raw_assessment_id = assessment_id or result.get("assessment_id") or str(uuid.uuid4())
+    try:
+        normalized_assessment_id = str(uuid.UUID(str(raw_assessment_id)))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise EvidenceExportError("assessment ID must be a valid UUID") from exc
     completed = _iso(now)
     started = _iso(now - timedelta(seconds=duration))
     scope = {"target": target}
@@ -138,7 +189,7 @@ def build_evidence_record(
     payload = {
         "schema_version": SCHEMA_VERSION,
         "assessment": {
-            "id": assessment_id or result.get("assessment_id") or str(uuid.uuid4()),
+            "id": normalized_assessment_id,
             "module": _clean_text(result["module"], 100),
             "target_scope": scope,
             "status": _clean_text(result.get("status", "COMPLETED"), 100),
@@ -193,11 +244,8 @@ def _write_exclusive(path: Path, data: bytes) -> str:
 
 
 def export_json(record: dict, directory: str | os.PathLike[str] = ".") -> str:
-    if not isinstance(record, dict) or record.get("schema_version") != SCHEMA_VERSION:
-        raise EvidenceExportError("invalid ApexRecon evidence record")
-    assessment_id = str(record.get("assessment", {}).get("id", ""))
-    if not assessment_id or any(ch not in "0123456789abcdef-" for ch in assessment_id.lower()):
-        raise EvidenceExportError("invalid assessment ID")
+    _require_valid_evidence_record(record)
+    assessment_id = str(record["assessment"]["id"])
     path = Path(directory) / f"apex_evidence_{assessment_id}.json"
     data = json.dumps(record, indent=2, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
     return _write_exclusive(path, data)
@@ -218,8 +266,7 @@ def generate_pdf_bytes(record: dict) -> bytes:
     except ImportError as exc:
         raise PDFDependencyError("Native PDF export requires ReportLab. Install with: python3 -m pip install reportlab") from exc
 
-    if not isinstance(record, dict) or record.get("schema_version") != SCHEMA_VERSION:
-        raise EvidenceExportError("invalid ApexRecon evidence record")
+    _require_valid_evidence_record(record)
     assessment = record.get("assessment", {})
     evidence = record.get("evidence", {})
     styles = getSampleStyleSheet()
@@ -329,9 +376,8 @@ def generate_pdf_bytes(record: dict) -> bytes:
 
 
 def export_pdf(record: dict, directory: str | os.PathLike[str] = ".") -> str:
-    assessment_id = str(record.get("assessment", {}).get("id", ""))
-    if not assessment_id or any(ch not in "0123456789abcdef-" for ch in assessment_id.lower()):
-        raise EvidenceExportError("invalid assessment ID")
+    _require_valid_evidence_record(record)
+    assessment_id = str(record["assessment"]["id"])
     pdf_data = generate_pdf_bytes(record)
     path = Path(directory) / f"apex_report_{assessment_id}.pdf"
     return _write_exclusive(path, pdf_data)
@@ -343,7 +389,9 @@ def export_artifacts(result: dict, duration_seconds: float, directory: str | os.
     try:
         pdf_path = export_pdf(record, directory)
         pdf_error = None
-    except PDFDependencyError as exc:
+    except Exception as exc:
+        # JSON is the primary structured artifact. A PDF renderer or file-system
+        # failure must not discard its path or abort the completed assessment.
         pdf_path = None
-        pdf_error = str(exc)
+        pdf_error = f"{type(exc).__name__}: {_clean_text(exc, 300)}"
     return {"record": record, "json_path": json_path, "pdf_path": pdf_path, "pdf_error": pdf_error}
