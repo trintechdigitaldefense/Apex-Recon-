@@ -33,6 +33,7 @@ on:
       - phase2y-report-consistency
       - phase2z-installation-preflight
       - phase2aa-capability-aware-startup
+      - phase2ab-installation-operational-reliability
   pull_request:
     branches:
       - main
@@ -65,6 +66,7 @@ on:
       - phase2y-report-consistency
       - phase2z-installation-preflight
       - phase2aa-capability-aware-startup
+      - phase2ab-installation-operational-reliability
 
 permissions:
   contents: read
