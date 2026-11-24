@@ -190,6 +190,10 @@ def probe(parent: Path) -> dict:
         and result["atomic_publication"]["supported"] is True
         and result["atomic_publication"]["content_verified"] is True
         and result["atomic_publication"]["cleanup_supported"] is True
+        and (
+            os.name != "posix"
+            or result["private_file_mode_0600"]["supported"] is True
+        )
         and result["temporary_artifacts_removed"] is True
     )
     return result
