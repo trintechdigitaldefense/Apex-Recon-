@@ -90,4 +90,4 @@ A test is PASS only when the command completes successfully and its output is re
 
 ## Completion criteria
 
-Phase 2AN requires all six Ubuntu/Python CI combinations and both Ubuntu dependency-smoke jobs to pass, plus retained manual evidence from native Termux, Ubuntu/proot and desktop Ubuntu. Any unavailable manual environment remains explicitly NOT RUN and is carried into the final readiness assessment.
+Phase 2AN requires all six Ubuntu/Python CI combinations and both Ubuntu dependency-smoke jobs to pass, plus retained manual evidence from native Termux and Ubuntu/proot. Desktop Ubuntu validation is useful when that environment is available, but it is not a prerequisite because the hosted Ubuntu 22.04/24.04 CI matrix already supplies desktop-Linux coverage. Any unavailable manual environment remains explicitly NOT RUN and is carried into the final readiness assessment.
