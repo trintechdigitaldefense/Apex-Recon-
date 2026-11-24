@@ -105,10 +105,10 @@ class AuditBackupSigningTests(unittest.TestCase):
         with self.assertRaises(AuditBackupSignatureError):
             self._verify()
 
-    def test_signature_envelope_tampering_rejected(self):
+    def test_signature_bytes_tampering_rejected(self):
         self._sign()
         envelope = json.loads(self.signature.read_text(encoding="utf-8"))
-        envelope["signed_at"] = "2026-01-01T00:00:00Z"
+        envelope["signature"] = "A" * 88
         self.signature.write_text(
             json.dumps(envelope, sort_keys=True, separators=(",", ":")) + "\n",
             encoding="utf-8",
