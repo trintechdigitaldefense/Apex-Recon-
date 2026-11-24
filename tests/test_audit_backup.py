@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import apex_audit_backup
+import apex_storage
 from apex_audit import append_audit_event
 from apex_audit_backup import AuditBackupError, create_audit_backup, verify_audit_backup, restore_audit_backup
 
@@ -64,6 +65,41 @@ class AuditBackupTests(unittest.TestCase):
         result = verify_audit_backup(self.backup, self.checkpoint)
         self.assertTrue(result["valid"])
         self.assertNotIn("_audit_data", result)
+
+    def test_atomic_publication_failure_leaves_no_final_backup_or_staging_file(self):
+        with patch.object(apex_storage.os, "fsync", side_effect=OSError("simulated storage failure")):
+            with self.assertRaises(AuditBackupError):
+                create_audit_backup(self.audit, self.backup, self.checkpoint)
+        self.assertFalse(self.backup.exists())
+        self.assertFalse(self.checkpoint.exists())
+        self.assertEqual(list(Path(self.temp.name).glob(".apexrecon-tmp-*")), [])
+
+    def test_restore_publication_failure_leaves_no_partial_destination(self):
+        create_audit_backup(self.audit, self.backup, self.checkpoint)
+        target = Path(self.temp.name) / "interrupted-restore.jsonl"
+        with patch.object(apex_storage.os, "fsync", side_effect=OSError("simulated storage failure")):
+            with self.assertRaises(AuditBackupError):
+                restore_audit_backup(self.backup, self.checkpoint, target)
+        self.assertFalse(target.exists())
+        self.assertEqual(list(Path(self.temp.name).glob(".apexrecon-tmp-*")), [])
+
+    def test_interruption_between_pair_publications_fails_closed(self):
+        original = apex_audit_backup.write_exclusive_atomic
+        calls = {"count": 0}
+
+        def interrupt_second_publication(path, data, mode=0o600):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise KeyboardInterrupt("simulated process interruption")
+            return original(path, data, mode)
+
+        with patch.object(apex_audit_backup, "write_exclusive_atomic", side_effect=interrupt_second_publication):
+            with self.assertRaises(KeyboardInterrupt):
+                create_audit_backup(self.audit, self.backup, self.checkpoint)
+        self.assertTrue(self.backup.is_file())
+        self.assertFalse(self.checkpoint.exists())
+        with self.assertRaises(AuditBackupError):
+            verify_audit_backup(self.backup, self.checkpoint)
 
     def test_tampered_backup_detected(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
