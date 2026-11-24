@@ -45,6 +45,7 @@ on:
       - phase2ak-process-crash-recovery-tests
       - phase2al-filesystem-capability-probe
       - phase2am-controlled-power-loss-validation
+      - phase2an-cross-platform-validation
   pull_request:
     branches:
       - main
@@ -83,17 +84,19 @@ on:
       - phase2ad-assessment-execution-recovery
       - phase2ae-recovery-evidence-consistency
       - phase2af-audit-integrity-diagnostics
+      - phase2an-cross-platform-validation
 
 permissions:
   contents: read
 
 jobs:
   tests:
-    name: Python ${{ matrix.python-version }} tests
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-22.04", "ubuntu-24.04"]
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Check out source
@@ -111,7 +114,11 @@ jobs:
 
   linux-dependency-smoke:
     name: Linux dependency smoke test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-22.04", "ubuntu-24.04"]
     steps:
       - name: Check out source
         uses: actions/checkout@v4
