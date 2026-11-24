@@ -6,6 +6,7 @@ are offline operations; this module never initiates assessments or network acces
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 import os
@@ -25,7 +26,7 @@ class SigningDependencyError(RuntimeError):
 
 def _crypto():
     try:
-        from cryptography.exceptions import InvalidSignature
+        from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric.ed25519 import (
             Ed25519PrivateKey, Ed25519PublicKey,
@@ -34,7 +35,7 @@ def _crypto():
         raise SigningDependencyError(
             "Evidence signing requires the optional cryptography package"
         ) from exc
-    return InvalidSignature, serialization, Ed25519PrivateKey, Ed25519PublicKey
+    return InvalidSignature, UnsupportedAlgorithm, serialization, Ed25519PrivateKey, Ed25519PublicKey
 
 
 def _passphrase_bytes(passphrase: str) -> bytes:
@@ -78,7 +79,7 @@ def generate_ed25519_keypair(
     passphrase: str,
 ) -> dict:
     """Create an encrypted private key and matching public key, without overwrite."""
-    _, serialization, Ed25519PrivateKey, _ = _crypto()
+    _, _, serialization, Ed25519PrivateKey, _ = _crypto()
     password = _passphrase_bytes(passphrase)
     private_path = Path(private_key_path)
     public_path = Path(public_key_path)
@@ -122,13 +123,13 @@ def sign_engagement_record(
     """Sign the complete canonical engagement JSON record using Ed25519."""
     if not verify_engagement_record(record):
         raise EngagementError("cannot sign an invalid or checksum-mismatched engagement record")
-    InvalidSignature, serialization, Ed25519PrivateKey, Ed25519PublicKey = _crypto()
+    InvalidSignature, UnsupportedAlgorithm, serialization, Ed25519PrivateKey, Ed25519PublicKey = _crypto()
     password = _passphrase_bytes(passphrase)
     try:
         private_key = serialization.load_pem_private_key(
             Path(private_key_path).read_bytes(), password=password
         )
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, UnsupportedAlgorithm) as exc:
         raise EngagementError("private key could not be loaded; check its path and passphrase") from exc
     if not isinstance(private_key, Ed25519PrivateKey):
         raise EngagementError("private key must use Ed25519")
@@ -191,7 +192,7 @@ def verify_engagement_signature(
             return False
         public_key.verify(signature, payload)
         return True
-    except Exception:
+    except (InvalidSignature, OSError, ValueError, TypeError, UnsupportedAlgorithm, binascii.Error):
         return False
 
 
