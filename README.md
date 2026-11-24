@@ -239,3 +239,7 @@ Phase 2AM turns the recovery drill guidance into a structured, repeatable protoc
 
 ### Milestone 2AO: storage-aware operational readiness (development)
 Phase 2AO makes `apex_doctor.py` run the non-destructive atomic-storage capability probe against the actual artifact output directory. Ordinary write access is no longer treated as sufficient evidence-storage readiness: missing hard-link support, failed atomic publication, directory sync, private mode, or cleanup causes a non-zero readiness result. The atomic publisher remains fail-closed with no direct-write fallback. See [Phase 2AO storage-aware readiness](docs/PHASE2AO_STORAGE_AWARE_READINESS.md).
+
+
+### Milestone 2AP: assessment preflight enforcement
+Phase 2AP runs a fresh local readiness check before the operator can start OSINT, SMB, HTTP, TLS, or a unified engagement. The check requires a supported Python runtime, the expected project files, a writable current artifact directory, and a successful atomic evidence-storage probe in that directory. If diagnostics fail, are unavailable, or report unsupported storage, the selected assessment module is not invoked and no target prompt or target interaction occurs. Evidence signing and offline verification remain available independently. The preflight does not install dependencies, change permissions, or contact targets. See [Phase 2AP assessment preflight enforcement](docs/PHASE2AP_ASSESSMENT_PREFLIGHT_ENFORCEMENT.md).
