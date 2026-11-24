@@ -77,7 +77,7 @@ def fingerprint(headers: Any, body: bytes) -> list[dict]:
         for tag in re.findall(r"<meta\b[^>]*>", html, re.I):
             attributes = {
                 name.lower(): value
-                for name, value in re.findall(
+                for name, _quote, value in re.findall(
                     r"""([a-zA-Z_:][a-zA-Z0-9_.:-]*)\s*=\s*(["'])(.*?)\2""",
                     tag,
                     re.I,
