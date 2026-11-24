@@ -28,8 +28,9 @@ The evidence record contains:
 - On POSIX systems, files are created with owner-only permissions (0600).
 - JSON is UTF-8, indented and key-sorted for practical review.
 - Raw HTTP response bodies are not exported.
-- HTTP URLs in the existing assessment model omit query strings; the evidence exporter does not add query parameters.
-- The checksum detects changes to the canonical assessment record when independently recomputed. It is not a digital signature, proof of origin, immutable storage, or protection against an attacker who can replace both the artifact and checksum.
+- Exported HTTP URLs have credentials, query strings and fragments removed; relative URL query strings are also removed, and malformed URL values fail closed.
+- The checksum detects changes to the canonical assessment record when independently recomputed. Phase 2F adds verification before JSON export and PDF rendering. It is not a digital signature, proof of origin, immutable storage, or protection against an attacker who can replace both the artifact and checksum.
+- PDF generation failures are reported separately; a successfully written JSON evidence file remains available.
 - Assessment records should be stored and transferred using the organisation's approved secure evidence-handling process.
 
 ## Native PDF dependency
@@ -55,4 +56,4 @@ No live targets are contacted by these tests.
 - ReportLab is optional, so a native PDF will not be created until the dependency is installed in the operator's Python environment.
 - The checksum is a content-integrity aid, not a signature or immutable evidence vault.
 - The feature does not add automatic comparisons between separate assessments, digital signing, a central evidence repository, client portal, recurring scans, or background monitoring.
-- GitHub Actions passed 94 tests on Python 3.10, 3.11 and 3.12, plus the Linux dependency/import smoke test. Operator phone validation remains pending. No merge, release or client deployment is included.
+- Phase 2E GitHub Actions passed 94 tests on Python 3.10, 3.11 and 3.12, plus the Linux dependency/import smoke test. Operator Ubuntu/Termux validation passed 94 tests and confirmed ReportLab 4.1.0. Phase 2F validation is tracked separately. No merge, release or client deployment is included.
