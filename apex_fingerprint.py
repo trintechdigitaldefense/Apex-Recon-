@@ -19,6 +19,8 @@ def fingerprint(headers: Any, body: bytes) -> list[dict]:
     import codecs
 
     content_type = _header(headers, "Content-Type") or ""
+    if content_type and "text/html" not in content_type.lower() and "application/xhtml+xml" not in content_type.lower():
+        return []
     charset = re.search(r"charset\s*=\s*['\"]?([a-zA-Z0-9._-]+)", content_type, re.I)
     encoding = "utf-8"
     if charset:
