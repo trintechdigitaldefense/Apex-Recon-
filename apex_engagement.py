@@ -208,6 +208,16 @@ def _record_structure_valid(record: dict) -> bool:
         modules = record["modules"]
         summary = record["summary"]
         evidence = record["evidence"]
+        if record.get("tool") != {
+            "name": "ApexRecon", "version": "2.0.1-dev",
+            "publisher": "TrinTech Digital Defense",
+        }:
+            return False
+        limitations = record.get("limitations")
+        if not isinstance(limitations, list) or any(
+            not isinstance(item, str) or not item.strip() for item in limitations
+        ):
+            return False
         if not isinstance(engagement, dict) or not isinstance(modules, list) or len(modules) != MAX_MODULES:
             return False
         if not isinstance(summary, dict) or not isinstance(evidence, dict):
@@ -314,6 +324,10 @@ def verify_engagement_record(record: Any) -> bool:
         return False
     digest = integrity.get("engagement_sha256")
     if integrity.get("algorithm") != "SHA-256" or not isinstance(digest, str) or len(digest) != 64:
+        return False
+    if integrity.get("meaning") != (
+        "Checksum of the canonical engagement record before the integrity field; not a digital signature."
+    ):
         return False
     if any(char not in "0123456789abcdef" for char in digest.lower()):
         return False
