@@ -1,4 +1,8 @@
-"""Pure selection and result-assembly helpers for Phase 2J CLI orchestration."""
+"""Pure, fail-closed helpers for Phase 2J/2K unified engagement orchestration."""
+import math
+from datetime import datetime
+
+from apex_findings import FindingSchemaError, normalize_findings
 
 MODULE_NAMES = (
     "External Footprinting (OSINT)",
@@ -29,8 +33,114 @@ def parse_module_selection(value):
     return {MODULE_NAMES[number - 1] for number in numbers}
 
 
+def _failure_entry(name, reason):
+    return {
+        "module": name, "status": "FAILED",
+        "target_scope": {"module": name, "scope": "module result rejected"},
+        "findings": [], "duration_seconds": 0,
+        "limitations": [reason],
+    }
+
+
+def _valid_scope(scope):
+    if not isinstance(scope, dict) or not scope:
+        return False
+    for key, value in scope.items():
+        if not isinstance(key, (str, int, float)) or not str(key).strip():
+            return False
+        if isinstance(value, (str, int, float)):
+            continue
+        if isinstance(value, list) and len(value) <= 50:
+            if all(isinstance(part, (str, int, float)) for part in value):
+                continue
+        return False
+    return True
+
+
+def _valid_timestamp(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def _validate_outcome(name, outcome):
+    if not isinstance(outcome, dict):
+        raise ValueError("module result must be an object")
+    status = str(outcome.get("status", "")).strip().upper()
+    if status not in VALID_STATUSES:
+        raise ValueError("module status is missing or unsupported")
+    findings = outcome.get("findings", [])
+    if not isinstance(findings, list):
+        raise ValueError("findings must be a list")
+    if status == "NOT_RUN" and findings:
+        raise ValueError("NOT_RUN module cannot contain findings")
+    if not _valid_scope(outcome.get("target_scope")):
+        raise ValueError("target scope must be a non-empty scalar/list object")
+    duration = outcome.get("duration_seconds", 0)
+    if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+            or not math.isfinite(duration) or duration < 0 or duration > 86400):
+        raise ValueError("duration must be finite and between 0 and 86400 seconds")
+    limitations = outcome.get("limitations", [])
+    if (not isinstance(limitations, list) or len(limitations) > 100
+            or any(not isinstance(item, (str, int, float)) or not str(item).strip()
+                   for item in limitations)):
+        raise ValueError("limitations must contain at most 100 non-empty scalar items")
+    for field in ("started_at", "completed_at"):
+        if field in outcome and not _valid_timestamp(outcome[field]):
+            raise ValueError(f"{field} must be a timezone-aware ISO-8601 timestamp")
+    try:
+        normalize_findings(findings, name, default_confidence="UNKNOWN",
+                           default_evidence_type="UNKNOWN")
+    except FindingSchemaError as exc:
+        raise ValueError("finding data failed common-schema validation") from exc
+    result = {
+        "module": name, "status": status, "target_scope": outcome["target_scope"],
+        "findings": findings, "duration_seconds": duration, "limitations": limitations,
+    }
+    for field in ("started_at", "completed_at"):
+        if field in outcome:
+            result[field] = outcome[field]
+    return result
+
+
+def run_selected_modules(selected, runners, on_error=None):
+    """Run selected module callables in stable order, isolating each exception."""
+    if isinstance(selected, (str, bytes)):
+        raise ValueError("selected must be a collection of module names")
+    selected = set(selected)
+    if not selected or not selected.issubset(set(MODULE_NAMES)):
+        raise ValueError("selected must contain one or more supported modules")
+    if not isinstance(runners, dict):
+        raise ValueError("runners must be a mapping")
+    outcomes = {}
+    for name in MODULE_NAMES:
+        if name not in selected:
+            continue
+        runner = runners.get(name)
+        try:
+            if not callable(runner):
+                raise RuntimeError("No callable runner is registered")
+            outcomes[name] = runner()
+        except Exception as exc:
+            if callable(on_error):
+                try:
+                    on_error(name, exc)
+                except Exception:
+                    pass
+            outcomes[name] = _failure_entry(
+                name, f"Module stopped unexpectedly ({type(exc).__name__}); inspect the operator log."
+            )
+    return outcomes
+
+
 def assemble_module_results(selected, outcomes):
-    """Create all four required entries, explicitly marking skipped work."""
+    """Create all four entries; isolate invalid output to its originating module."""
+    if isinstance(selected, (str, bytes)):
+        raise ValueError("selected must be a collection of module names")
     selected = set(selected)
     if not selected.issubset(set(MODULE_NAMES)):
         raise ValueError("Unsupported selected module")
@@ -55,23 +165,10 @@ def assemble_module_results(selected, outcomes):
                 "limitations": ["Module did not proceed, for example because target validation or authorization was not completed."],
             })
             continue
-        if not isinstance(outcome, dict):
-            raise ValueError(f"Outcome for {name} must be an object or None")
-        status = str(outcome.get("status", "")).strip().upper()
-        if status not in VALID_STATUSES:
-            raise ValueError(f"Invalid status for {name}")
-        findings = outcome.get("findings", [])
-        if not isinstance(findings, list):
-            raise ValueError(f"Findings for {name} must be a list")
-        if status == "NOT_RUN" and findings:
-            raise ValueError(f"NOT_RUN module {name} cannot contain findings")
-        scope = outcome.get("target_scope")
-        if not isinstance(scope, dict) or not scope:
-            raise ValueError(f"Target scope for {name} must be a non-empty object")
-        entries.append({
-            "module": name, "status": status, "target_scope": scope,
-            "findings": findings,
-            "duration_seconds": outcome.get("duration_seconds", 0),
-            "limitations": outcome.get("limitations", []),
-        })
+        try:
+            entries.append(_validate_outcome(name, outcome))
+        except (TypeError, ValueError, OverflowError):
+            entries.append(_failure_entry(
+                name, "Module output failed engagement validation and was excluded from findings; inspect the operator log."
+            ))
     return entries
