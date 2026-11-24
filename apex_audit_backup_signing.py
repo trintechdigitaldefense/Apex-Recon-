@@ -111,7 +111,7 @@ def _load_checkpoint(checkpoint_path):
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AuditBackupSignatureError("checkpoint is not valid UTF-8 JSON") from exc
     try:
-        canonical = _canonical(checkpoint) + b"\\n" if isinstance(checkpoint, dict) else None
+        canonical = _canonical(checkpoint) + b"\n" if isinstance(checkpoint, dict) else None
     except (TypeError, ValueError) as exc:
         raise AuditBackupSignatureError("checkpoint contains invalid JSON values") from exc
     if canonical != raw:
@@ -180,7 +180,7 @@ def verify_signed_audit_backup(
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AuditBackupSignatureError("signature envelope is not valid UTF-8 JSON") from exc
     try:
-        canonical = _canonical(envelope) + b"\\n" if isinstance(envelope, dict) else None
+        canonical = _canonical(envelope) + b"\n" if isinstance(envelope, dict) else None
     except (TypeError, ValueError) as exc:
         raise AuditBackupSignatureError("signature envelope contains invalid JSON values") from exc
     if canonical != signature_bytes:
