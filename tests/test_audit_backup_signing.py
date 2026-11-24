@@ -77,6 +77,23 @@ class AuditBackupSigningTests(unittest.TestCase):
         with self.assertRaises(AuditBackupSignatureError):
             self._verify(public=self.wrong_public)
 
+    def test_rewritten_backup_and_unsigned_checkpoint_rejected(self):
+        self._sign()
+        alternate_audit = Path(self.temp.name) / "alternate.jsonl"
+        alternate_backup = Path(self.temp.name) / "alternate-backup.json"
+        alternate_checkpoint = Path(self.temp.name) / "alternate-checkpoint.json"
+        append_audit_event(
+            alternate_audit, "SIGNATURE_REJECTED",
+            "12345678-1234-5678-1234-567812345678", "INVALID", "b" * 64,
+        )
+        create_audit_backup(alternate_audit, alternate_backup, alternate_checkpoint)
+        # An attacker can rewrite both unsigned artifacts consistently, but
+        # cannot produce a valid signature for the replacement checkpoint.
+        self.backup.write_bytes(alternate_backup.read_bytes())
+        self.checkpoint.write_bytes(alternate_checkpoint.read_bytes())
+        with self.assertRaises(AuditBackupSignatureError):
+            self._verify()
+
     def test_checkpoint_tampering_rejected(self):
         self._sign()
         checkpoint = json.loads(self.checkpoint.read_text(encoding="utf-8"))
