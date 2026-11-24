@@ -77,7 +77,7 @@ class AuditTrailTests(unittest.TestCase):
             self.path, "SIGNATURE_VERIFIED", self.engagement_id,
             "SUCCESS", self.fingerprint,
         )
-        self.path.write_bytes(self.path.read_bytes().rstrip(b"\\n"))
+        self.path.write_bytes(self.path.read_bytes().rstrip(b"\n"))
         self.assertFalse(verify_audit_trail(self.path)["valid"])
 
     def test_invalid_event_inputs_rejected(self):
