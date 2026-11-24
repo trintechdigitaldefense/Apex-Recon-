@@ -318,10 +318,10 @@ def generate_pdf_bytes(record: dict) -> bytes:
     rows = [[p("Severity", "ApexSmall"), p("Check / Status", "ApexSmall"), p("Evidence", "ApexSmall"), p("Recommended action", "ApexSmall")]]
     for item in findings:
         rows.append([
-            p(item.get("severity", "INFO"), "ApexSmall"),
+            p(str(item.get("severity", "INFO")) + " / " + str(item.get("review_priority", "UNRANKED")), "ApexSmall"),
             p(str(item.get("check", "")) + " / " + str(item.get("status", "")), "ApexSmall"),
             p(item.get("evidence", ""), "ApexSmall"),
-            p(item.get("recommendation", ""), "ApexSmall"),
+            p(str(item.get("recommendation_status", "MISSING")) + ": " + str(item.get("recommendation", "")), "ApexSmall"),
         ])
     findings_table = Table(rows, colWidths=[19 * mm, 34 * mm, 60 * mm, 60 * mm], repeatRows=1)
     findings_table.setStyle(TableStyle([
