@@ -235,3 +235,7 @@ Phase 2AL adds a non-destructive local probe for same-directory hard links, dire
 
 ### Milestone 2AM: controlled power-loss validation protocol (development)
 Phase 2AM turns the recovery drill guidance into a structured, repeatable protocol for actual guest-VM power interruption. It defines staging, post-publication, backup/checkpoint, restore and completed-artifact scenarios; requires disposable VM snapshots, synthetic data, guest-only power-off, at least three runs per scenario, and recorded filesystem/hash evidence. The protocol is not a claim that physical drills have passed. CI, process termination tests and filesystem capability probes are not substitutes for actual power-loss observations. See [Phase 2AM controlled power-loss validation](docs/PHASE2AM_CONTROLLED_POWER_LOSS_VALIDATION.md).
+
+
+### Milestone 2AN: cross-platform validation (development)
+Phase 2AN defines Linux as the supported platform family because ApexRecon uses POSIX file-locking and storage behavior. It adds explicit unsupported-platform reporting to the local diagnostic, expands automated CI across Ubuntu 22.04/24.04 and Python 3.10/3.11/3.12, and documents separate manual validation for native Termux, Ubuntu/proot and desktop Ubuntu. CI does not substitute for device or filesystem-specific evidence. Windows/macOS are not supported by this milestone. See [Phase 2AN cross-platform validation](docs/PHASE2AN_CROSS_PLATFORM_VALIDATION.md).
