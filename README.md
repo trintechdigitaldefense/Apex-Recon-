@@ -121,3 +121,7 @@ Phase 2J connects the Phase 2I report builder to main-menu option 5. Operators c
 
 ### Milestone 2K: unified engagement reliability (draft PR)
 Phase 2K hardens the unified engagement workflow so a failure in one selected module does not prevent later selected modules from running or discard valid results from other modules. Module outputs are validated independently for status, scope, findings, duration, limitations and timestamps. Invalid outputs are represented as FAILED with an explicit limitation; unselected and selected-but-not-run modules remain distinct. The work does not change scan commands, authorization gates, target scope or network behavior. See [Phase 2K engagement reliability](docs/PHASE2K_ENGAGEMENT_RELIABILITY.md).
+
+
+### Milestone 2L: unified engagement report quality (draft PR)
+Phase 2L makes operator feedback callbacks non-blocking and expands the unified PDF to show engagement and per-module scope, timestamps, limitations, status counts, and finding evidence metadata. The PDF remains a presentation of supplied assessment outputs and does not independently verify scan completeness or accuracy. See [Phase 2L engagement report quality](docs/PHASE2L_ENGAGEMENT_REPORT_QUALITY.md).

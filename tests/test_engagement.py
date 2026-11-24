@@ -84,6 +84,20 @@ class EngagementTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 export_engagement_json(record, directory)
 
+    def test_pdf_rendering_handles_empty_findings_and_preserves_pdf_structure(self):
+        data = sample_modules()
+        for module in data:
+            module["findings"] = []
+        record = build_engagement_record({"target": "example.com"}, data)
+        try:
+            pdf = generate_engagement_pdf_bytes(record)
+        except Exception as exc:
+            if "ReportLab" in str(exc):
+                self.skipTest("ReportLab not installed")
+            raise
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertTrue(pdf.rstrip().endswith(b"%%EOF"))
+
     def test_pdf_renders_when_reportlab_available(self):
         record = build_engagement_record({"target": "example.com"}, sample_modules())
         try:

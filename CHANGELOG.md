@@ -1,3 +1,16 @@
+## [2.0.1-dev] — Phase 2L unified engagement report quality
+
+### Added
+- Expanded the unified PDF with engagement and per-module scope, timestamps, limitations, status counts and separate finding evidence metadata.
+- Added an explicit empty-findings presentation and landscape layout for readable evidence columns.
+- Made operator feedback callbacks non-blocking so console or logging callback failures cannot interrupt module execution.
+- Added offline regression tests for callback failures and empty-finding PDF output.
+
+### Boundaries
+- No assessment probes, authorization prompts, target scope or network behavior changed.
+- Tests use synthetic data; no live targets contacted.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 # Changelog
 
 ## [2.0.1-dev] — Phase 2K unified engagement reliability

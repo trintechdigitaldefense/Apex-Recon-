@@ -123,8 +123,13 @@ def run_selected_modules(selected, runners, on_start=None, on_error=None):
     for name in MODULE_NAMES:
         if name not in selected:
             continue
+        # Operator callbacks are observational only. A broken console/logging
+        # callback must never prevent an authorized module runner from executing.
         if callable(on_start):
-            on_start(name)
+            try:
+                on_start(name)
+            except Exception:
+                pass
         runner = runners.get(name)
         try:
             if not callable(runner):
