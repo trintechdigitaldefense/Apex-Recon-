@@ -1,6 +1,7 @@
 import unittest
 
 from apex_finding_adapters import osint_result_observations, smb_host_findings
+from apex_recon_v2 import parse_smb_output
 from apex_findings import FINDING_SCHEMA_VERSION
 
 
@@ -33,6 +34,20 @@ class SMBFindingAdapterTests(unittest.TestCase):
         self.assertEqual(len(completeness), 1)
         self.assertEqual(completeness[0]["severity"], "UNKNOWN")
         self.assertEqual(completeness[0]["status"], "UNASSESSED")
+
+    def test_smb_parser_attaches_structured_findings_without_removing_legacy_fields(self):
+        raw = """Nmap scan report for 192.0.2.20
+445/tcp open microsoft-ds
+| smb-security-mode:
+|   message_signing: disabled
+| smb-vuln-ms17-010:
+|   State: VULNERABLE
+"""
+        host = parse_smb_output(raw)[0]
+        self.assertIn("findings", host)
+        self.assertIn("structured_findings", host)
+        self.assertTrue(any(item["check"] == "SMB_MESSAGE_SIGNING" for item in host["structured_findings"]))
+        self.assertTrue(any(item["check"] == "MS17-010" for item in host["structured_findings"]))
 
     def test_not_vulnerable_is_limited_observation(self):
         findings = smb_host_findings({
