@@ -107,7 +107,7 @@ class AuditBackupTests(unittest.TestCase):
 
     def test_non_finite_json_metadata_fails_with_backup_error(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
-        self.backup.write_text('{"invalid":NaN}\\n', encoding="utf-8")
+        self.backup.write_text('{"invalid":NaN}\n', encoding="utf-8")
         with self.assertRaises(AuditBackupError):
             verify_audit_backup(self.backup, self.checkpoint)
 
