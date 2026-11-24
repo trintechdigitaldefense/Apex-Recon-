@@ -87,6 +87,7 @@ def collect_diagnostics(
     write_probe: bool = True,
     python_prefix: str | None = None,
     python_base_prefix: str | None = None,
+    storage_probe_fn: Callable[[Path], dict] | None = None,
 ) -> dict:
     """Return local diagnostics without running subprocesses or network calls."""
     version = tuple(python_version if python_version is not None else sys.version_info[:3])
@@ -115,6 +116,32 @@ def collect_diagnostics(
         "venv_available": bool(module_lookup("venv")),
     }
     project = inspect_project(project_root, artifact_directory, write_probe)
+    storage = {
+        "checked": False,
+        "compatible": False,
+        "artifact_directory": project["artifact_directory"],
+        "error": None,
+        "probe": None,
+    }
+    if storage_probe_fn is None:
+        try:
+            from tools.apex_storage_probe import probe as storage_probe_fn
+        except (ImportError, AttributeError):
+            storage["error"] = "storage capability probe is unavailable"
+    if storage_probe_fn is not None:
+        try:
+            storage_result = storage_probe_fn(Path(project["artifact_directory"]))
+            storage["checked"] = True
+            storage["compatible"] = (
+                isinstance(storage_result, dict)
+                and storage_result.get("overall_atomic_storage_compatible") is True
+                and storage_result.get("temporary_artifacts_removed") is True
+            )
+            storage["probe"] = storage_result
+            if not storage["compatible"]:
+                storage["error"] = "required atomic-storage capabilities are unavailable or cleanup was incomplete"
+        except Exception as exc:
+            storage["error"] = f"{type(exc).__name__}: storage capability probe failed"
 
     return {
         "python": {
@@ -128,6 +155,7 @@ def collect_diagnostics(
         },
         "environment": environment,
         "project": project,
+        "storage": storage,
         "tools": tools,
         "python_packages": python_packages,
         "capabilities": {
@@ -142,6 +170,7 @@ def collect_diagnostics(
             "evidence_signing": python_packages["cryptography"],
             "project_layout": project["complete"],
             "artifact_directory_writable": project["writable"],
+            "atomic_evidence_storage": storage["compatible"],
         },
     }
 
@@ -178,12 +207,16 @@ def render_report(report: dict) -> str:
         "  Required core files: " + ("PRESENT" if project.get("complete") else "MISSING"),
         f"  Artifact output directory: {project.get('artifact_directory', '[not checked]')}",
         "  Artifact directory write test: " + ("WRITABLE" if project.get("writable") else "FAILED"),
+        "  Atomic evidence storage: " + ("COMPATIBLE" if report.get("storage", {}).get("compatible") else "UNSUPPORTED / NOT VERIFIED"),
     ]
     if not project.get("complete"):
         missing = [name for name, present in project.get("required_files", {}).items() if not present]
         lines.append("    Missing: " + (", ".join(missing) if missing else "project layout could not be verified"))
     if not project.get("writable") and project.get("write_error"):
         lines.append(f"    Write test error: {project['write_error']}")
+    if not report.get("storage", {}).get("compatible"):
+        lines.append("    Storage error: " + str(report.get("storage", {}).get("error") or "capability probe did not pass"))
+        lines.append("    Evidence-producing assessments are blocked until this directory passes tools/apex_storage_probe.py.")
 
     lines.extend(["", "Assessment capabilities:",
                   "  HTTP/TLS assessment:       AVAILABLE (Python standard library)"])
@@ -219,7 +252,8 @@ def render_report(report: dict) -> str:
         "- GeoIP lookup sends the resolved target IP to ipinfo.io.",
         "- Run the application with the same Python interpreter used for dependency installation.",
         "- Keep native Termux and Ubuntu-proot Python packages separate; do not mix their environments.",
-        "- This check creates and removes one temporary file to verify local write access. It does not install software or contact assessment targets.",
+        "- Storage readiness runs the non-destructive atomic-publication probe in the configured artifact directory.",
+        "- This check does not install software or contact assessment targets.",
     ])
     return "\n".join(lines)
 
@@ -245,6 +279,8 @@ def main(argv=None) -> int:
         print(render_report(report))
 
     if not report["python"]["supported"]:
+        return 1
+    if not report.get("storage", {}).get("compatible", False):
         return 1
     project = report.get("project", {})
     if project and (not project.get("complete") or not project.get("writable")):
