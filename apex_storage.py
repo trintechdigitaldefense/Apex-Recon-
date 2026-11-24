@@ -40,6 +40,7 @@ def write_exclusive_atomic(
     )
     temporary_path = Path(temporary_name)
     published_info = None
+    identity_fd = -1
     try:
         if os.name == "posix":
             os.fchmod(fd, mode)
@@ -51,9 +52,11 @@ def write_exclusive_atomic(
             handle.flush()
             os.fsync(handle.fileno())
 
-        # Capture the staged inode before publication so cleanup can identify
-        # exactly our final path even if the staging name is later removed.
-        staged_info = temporary_path.stat()
+        # Keep the staged inode open through publication and failure cleanup.
+        # This prevents inode-number reuse if another process replaces the final
+        # path while directory synchronization is failing.
+        identity_fd = os.open(str(temporary_path), os.O_RDONLY)
+        staged_info = os.fstat(identity_fd)
 
         # Same-directory hard-link publication is atomic and create-only.
         # An existing file or symlink is never overwritten.
@@ -80,7 +83,7 @@ def write_exclusive_atomic(
         # exact inode we published; never unlink a path another process swapped.
         if published_info is not None:
             try:
-                destination_info = destination.stat()
+                destination_info = destination.lstat()
                 if (published_info.st_dev, published_info.st_ino) == (
                     destination_info.st_dev, destination_info.st_ino
                 ):
@@ -89,6 +92,11 @@ def write_exclusive_atomic(
                 pass
         raise
     finally:
+        if identity_fd >= 0:
+            try:
+                os.close(identity_fd)
+            except OSError:
+                pass
         try:
             temporary_path.unlink()
         except FileNotFoundError:
