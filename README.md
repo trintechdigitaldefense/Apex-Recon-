@@ -24,14 +24,14 @@ The R1 branches restore and stabilize the last complete executable v2.0 baseline
 
 ## Phase 2 — Web assessment reconstruction
 
-### Milestone 2A: HTTP security assessment (in development)
+### Milestone 2A/2B: HTTP security assessment and CLI/report integration (draft PR)
 A separate standard-library engine in `apex_web.py` performs up to two read-only GET requests against one supplied hostname/path to assess:
 - HTTP-to-HTTPS redirect behavior
 - HSTS, CSP, MIME-sniffing, clickjacking, Referrer-Policy and Permissions-Policy headers
 - Secure, HttpOnly and SameSite attributes on observed cookies
 - Server and X-Powered-By disclosure
 
-Milestone 2A is integrated into the interactive CLI as menu option 3 and writes a dedicated, self-contained HTML assessment report. The engine does not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. TLS certificate/protocol checks and CMS identification are later milestones. The integration is under review in the Phase 2B draft PR.
+Milestone 2A is integrated into the interactive CLI as menu option 3 and writes a dedicated, self-contained HTML assessment report. The engine does not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. TLS certificate/protocol checks and CMS identification are later milestones. The HTTP CLI/report integration is in Phase 2B. Phase 2C adds one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting in a separate menu option. Both milestones remain development drafts until reviewed and validated.
 
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
@@ -61,7 +61,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py tests
+python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -75,8 +75,8 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; only the isolated HTTP-header milestone is present in this branch.
-- The HTTP integration/report work is in a separate draft PR and has not been merged or phone-validated.
-- TLS certificate, protocol and cipher assessment is not included yet.
+- The HTTP and TLS CLI/report work is in stacked draft PRs and has not been merged or phone-validated.
+- TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS fingerprinting and technology identification are not included yet.
 - Native PDF export is not implemented; the current recovered report is HTML.
 - Legacy SMB vulnerability checks are indicators and require independent verification.
