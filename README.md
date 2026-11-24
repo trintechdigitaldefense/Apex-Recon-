@@ -219,3 +219,7 @@ Phase 2AH routes each audit backup, detached checkpoint and restored audit trail
 
 ### Milestone 2AI: controlled operational recovery drill runbooks (development)
 Phase 2AI defines controlled, offline drill procedures for process interruption, backup/checkpoint separation, synchronization failures, existing destinations, permissions, bounded storage exhaustion, unsupported hard links, interrupted restore, and disposable-VM power-loss testing. It establishes evidence and pass/fail criteria across Termux, proot and Linux. These are operator runbooks, not proof that physical drills have passed. Use disposable synthetic data only; never fill a primary device or interrupt a production system. See [Phase 2AI controlled recovery drill runbooks](docs/PHASE2AI_CONTROLLED_RECOVERY_DRILL_RUNBOOKS.md).
+
+
+### Milestone 2AJ: atomic storage edge-case regression coverage (development)
+Phase 2AJ expands offline fault-injection coverage for the create-only atomic artifact publisher. Tests verify fail-closed behavior when same-directory hard links are unsupported, preservation of symlink destinations and their targets, and inode-specific cleanup when a destination is replaced during a directory-sync failure. Permission-mode validation is also tightened. These are deterministic temporary-directory tests, not physical power-loss validation. No assessment behavior or network scope changes. See [Phase 2AJ atomic storage edge-case tests](docs/PHASE2AJ_ATOMIC_STORAGE_EDGE_CASE_TESTS.md).
