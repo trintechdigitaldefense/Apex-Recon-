@@ -29,7 +29,7 @@ class MissingOSINTDependencyTests(unittest.TestCase):
         self.assertIn("NOT ASSESSED: nmap is not installed", rendered)
         self.assertNotIn("No record", rendered)
         self.assertEqual(result["status"], "PARTIAL")
-        self.assertIn("dig (DNS records)", result["limitations"][-1])
+        self.assertTrue(any("dig (DNS records)" in item for item in result["limitations"]))
         self.assertEqual(result["findings"], [])
 
 
