@@ -1263,7 +1263,7 @@ def evidence_signing_module():
     except Exception as exc:
         print(f"{RED}[!] Evidence signing operation failed: {type(exc).__name__}: {exc}{RESET}")
         log(f"Evidence signing operation failed: {type(exc).__name__}")
-    input(f"\\n{GREY}Press Enter to return to main menu...{RESET}")
+    input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
 
 # ─────────────────────────────────────────────
@@ -1282,6 +1282,8 @@ def main_menu():
     print(f"       {GREY}Certificate validation · Expiry · Negotiated TLS protocol/cipher · HTML report{RESET}")
     print(f"  {RED}[5]{RESET} {WHITE}Unified Engagement (OSINT/SMB/HTTP/TLS){RESET}")
     print(f"       {GREY}Select modules · track coverage · export combined JSON/PDF{RESET}")
+    print(f"  {RED}[6]{RESET} {WHITE}Evidence Signing / Verification (Ed25519){RESET}")
+    print(f"       {GREY}Encrypted keys · detached signatures · offline verification{RESET}")
     print(f"  {RED}[9]{RESET} {WHITE}Exit Framework{RESET}\n")
     return input(f"{RED}Apex{WHITE}@{RED}TrinTech{WHITE}:~#{RESET} ")
 
@@ -1306,7 +1308,9 @@ if __name__ == "__main__":
             tls_assessment_module()
         elif choice == '5':
             unified_engagement_module()
-        elif choice == '6':\n            evidence_signing_module()\n        elif choice == '9':
+        elif choice == '6':
+            evidence_signing_module()
+        elif choice == '9':
             print(f"{GREY}Terminating session...{RESET}")
             log("ApexRecon exited cleanly.")
             sys.exit(0)
