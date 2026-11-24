@@ -39,6 +39,7 @@ on:
       - phase2ae-recovery-evidence-consistency
       - phase2af-audit-integrity-diagnostics
       - phase2ag-audit-restore-assurance
+      - phase2ah-atomic-audit-backup-publication
   pull_request:
     branches:
       - main
