@@ -76,7 +76,7 @@ def _new_event(sequence: int, execution_id: str, event_type: str,
 def _verify_bytes(data: bytes) -> dict:
     empty = {
         "valid": False, "events": 0, "execution_id": None,
-        "selected_modules": [], "module_states": {},
+        "selected_modules": [], "module_states": {}, "artifact_refs": [],
         "execution_status": "INVALID", "head_hash": None, "error": "journal is empty",
     }
     if not data:
@@ -94,6 +94,7 @@ def _verify_bytes(data: bytes) -> dict:
     execution_id = None
     selected = []
     states = {}
+    artifact_refs = []
     finalized = None
     expected_keys = {
         "schema_version", "sequence", "timestamp", "execution_id",
@@ -173,6 +174,8 @@ def _verify_bytes(data: bytes) -> dict:
                                 or any(char not in "0123456789abcdef" for char in artifact_sha256)):
                             raise ValueError("invalid module artifact reference")
                     states[module] = status
+                    if artifact_file is not None:
+                        artifact_refs.append({"module": module, "file": artifact_file, "sha256": artifact_sha256})
                 elif kind in {"ENGAGEMENT_FINALIZED", "ENGAGEMENT_FINALIZATION_FAILED"}:
                     if (module is not None or status is not None
                             or artifact_file is not None or artifact_sha256 is not None):
@@ -187,6 +190,7 @@ def _verify_bytes(data: bytes) -> dict:
             return {
                 "valid": False, "events": index - 1, "execution_id": execution_id,
                 "selected_modules": selected, "module_states": states,
+                "artifact_refs": artifact_refs,
                 "execution_status": "INVALID", "head_hash": previous,
                 "error": f"event {index}: {exc}",
             }
@@ -202,6 +206,7 @@ def _verify_bytes(data: bytes) -> dict:
     return {
         "valid": True, "events": len(lines), "execution_id": execution_id,
         "selected_modules": selected, "module_states": states,
+        "artifact_refs": artifact_refs,
         "execution_status": execution_status, "head_hash": previous, "error": None,
     }
 
@@ -232,6 +237,65 @@ def inspect_execution_journal(path: str | os.PathLike[str]) -> dict:
         return _verify_bytes(b"")
     except OSError as exc:
         raise ExecutionJournalError(f"cannot safely read execution journal: {exc}") from exc
+
+
+def load_completed_module_artifacts(path: str | os.PathLike[str]) -> dict:
+    """Verify and load completed module sidecars referenced by a valid journal.
+
+    Returned outcomes are evidence for manual report reconstruction only.
+    This function never invokes assessment modules or resumes network activity.
+    """
+    journal_path = Path(path)
+    report = inspect_execution_journal(journal_path)
+    if not report["valid"]:
+        raise ExecutionJournalError("cannot load outcomes from an invalid journal")
+    artifacts = []
+    for reference in report["artifact_refs"]:
+        artifact_name = reference["file"]
+        if Path(artifact_name).name != artifact_name:
+            raise ExecutionJournalError("unsafe module artifact path in journal")
+        artifact_path = journal_path.parent / artifact_name
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(str(artifact_path), flags)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise ExecutionJournalError("module artifact is not a regular file")
+                chunks = []
+                total = 0
+                while True:
+                    chunk = os.read(fd, min(65536, 4 * 1024 * 1024 + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                    if total > 4 * 1024 * 1024:
+                        raise ExecutionJournalError("module artifact exceeds size limit")
+                payload = b"".join(chunks)
+            finally:
+                os.close(fd)
+        except OSError as exc:
+            raise ExecutionJournalError(f"cannot safely read module artifact: {type(exc).__name__}") from exc
+        if not hmac.compare_digest(hashlib.sha256(payload).hexdigest(), reference["sha256"]):
+            raise ExecutionJournalError("module artifact checksum mismatch")
+        try:
+            item = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ExecutionJournalError("module artifact is not valid UTF-8 JSON") from exc
+        if (not isinstance(item, dict) or item.get("schema_version") != "1.0"
+                or item.get("execution_id") != report["execution_id"]
+                or item.get("module") != reference["module"]
+                or item.get("status") != report["module_states"][reference["module"]]
+                or not isinstance(item.get("outcome"), dict)):
+            raise ExecutionJournalError("module artifact metadata does not match its journal event")
+        artifacts.append(item)
+    return {
+        "valid": True,
+        "execution_id": report["execution_id"],
+        "execution_status": report["execution_status"],
+        "module_states": report["module_states"],
+        "artifacts": artifacts,
+    }
 
 
 class ExecutionJournal:
