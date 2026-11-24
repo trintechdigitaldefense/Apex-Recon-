@@ -44,6 +44,7 @@ on:
       - phase2aj-atomic-storage-edge-case-tests
       - phase2ak-process-crash-recovery-tests
       - phase2al-filesystem-capability-probe
+      - phase2am-controlled-power-loss-validation
   pull_request:
     branches:
       - main
