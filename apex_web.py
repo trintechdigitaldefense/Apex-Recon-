@@ -653,7 +653,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         findings.append(_finding("HTTPS_ENDPOINT", "INFO", "RESPONDED",
                                  f"HTTPS endpoint returned HTTP status {https_result.status} ({status_class}).",
                                  "Review the application response and its authentication/access controls. HTTP status classes are descriptive observations, not vulnerability verdicts."))
-        https_finding_start = len(findings)
+        https_finding_start = len(findings) - 1
         findings.extend(_inspect_headers(https_result.headers, "https"))
         findings.extend(_inspect_cookies(https_result.headers, True))
         server = _header(https_result.headers, "Server")
