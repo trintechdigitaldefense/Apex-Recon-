@@ -270,7 +270,6 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
         from reportlab.lib.units import mm
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-            KeepTogether,
         )
     except ImportError as exc:
         raise EngagementPDFDependencyError("PDF export requires ReportLab") from exc
@@ -310,6 +309,8 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
         p("Module status counts: " + json.dumps(record["summary"]["module_status_counts"], sort_keys=True)),
         p("Severity counts: " + json.dumps(record["summary"]["finding_severity_counts"], sort_keys=True)),
         p("No composite risk score is calculated.", "Italic"),
+        p("Engagement record SHA-256: " + record["integrity"]["engagement_sha256"]),
+        p("This checksum covers the canonical JSON engagement record, not the PDF file.", "EngagementSmall"),
         p("Module Coverage and Scope", "Heading2"),
     ]
 
@@ -347,7 +348,7 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
                            for item in module["limitations"])
         else:
             details.append(p("Module limitations: none reported.", "EngagementSmall"))
-        story.append(KeepTogether(details))
+        story.extend(details)
 
     story.extend([p("Consolidated Findings", "Heading2")])
     finding_rows = [[
