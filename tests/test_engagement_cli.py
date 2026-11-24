@@ -2,6 +2,7 @@
 import unittest
 
 from apex_engagement_cli import MODULE_NAMES, assemble_module_results, parse_module_selection
+from apex_engagement import build_engagement_record, verify_engagement_record
 
 
 class ModuleSelectionTests(unittest.TestCase):
@@ -42,6 +43,30 @@ class ModuleAssemblyTests(unittest.TestCase):
         states = {entry["module"]: entry["status"] for entry in entries}
         self.assertEqual(states[MODULE_NAMES[1]], "FAILED")
         self.assertEqual(states[MODULE_NAMES[3]], "PARTIAL")
+
+    def test_assembled_results_build_a_verified_four_module_engagement(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        outcomes = {
+            MODULE_NAMES[0]: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [{
+                    "check": "DNS_A", "severity": "INFO", "status": "OBSERVED",
+                    "evidence": "192.0.2.10", "confidence": "HIGH",
+                    "evidence_type": "OBSERVATION",
+                }], "duration_seconds": 1.25,
+            },
+            MODULE_NAMES[2]: {
+                "status": "PARTIAL", "target_scope": {"url": "https://example.com"},
+                "findings": [], "duration_seconds": 0.5,
+            },
+        }
+        record = build_engagement_record(
+            {"engagement_name": "synthetic test"},
+            assemble_module_results(selected, outcomes),
+        )
+        self.assertEqual(record["engagement"]["module_count"], 4)
+        self.assertEqual(record["summary"]["total_findings"], 1)
+        self.assertTrue(verify_engagement_record(record))
 
     def test_rejects_invalid_outcomes_and_not_run_findings(self):
         with self.assertRaises(ValueError):
