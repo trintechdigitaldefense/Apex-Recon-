@@ -114,7 +114,7 @@ def probe(parent: Path) -> dict:
                 result["hard_links"]["error"] = (
                     "link/unlink left unexpected entries: " + ", ".join(leftovers[:8])
                 )
-        except OSError as exc:
+        except (OSError, AttributeError) as exc:
             result["hard_links"]["supported"] = False
             result["hard_links"]["cleanup_supported"] = False
             result["hard_links"]["error"] = _error(exc)
@@ -162,7 +162,7 @@ def probe(parent: Path) -> dict:
                     "entries remained after published artifact removal: "
                     + ", ".join(leftovers[:8])[:300]
                 )
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, TypeError, ValueError, AttributeError) as exc:
             result["atomic_publication"]["supported"] = False
             result["atomic_publication"]["cleanup_supported"] = False
             result["atomic_publication"]["error"] = _error(exc)
