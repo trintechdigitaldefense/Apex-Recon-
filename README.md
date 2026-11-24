@@ -199,3 +199,7 @@ Phase 2AC stages HTTP/TLS evidence and unified engagement JSON/PDF outputs in hi
 
 ### Milestone 2AD: assessment execution recovery and evidence checkpoints (development)
 Phase 2AD adds a private hash-chained execution journal to unified engagements. Each selected module is checkpointed before execution and its returned outcome is saved as an atomic private sidecar before the finish event. Operators can inspect interrupted/incomplete runs and verify recovered module evidence without automatically resuming network activity. Existing target prompts, authorization gates and assessment scope remain unchanged. See [Phase 2AD assessment execution recovery](docs/PHASE2AD_ASSESSMENT_EXECUTION_RECOVERY.md).
+
+
+### Milestone 2AE: crash-safe audit backup and signature publication (development)
+Phase 2AE routes portable audit backups, detached checkpoints, restored audit trails and Ed25519 signature envelopes through the shared atomic create-only publisher. A final artifact path is not exposed with partially written bytes, and existing files are never overwritten. If backup publication succeeds but checkpoint publication fails or the process stops between them, the complete backup is preserved as an incomplete pair for operator investigation; it is not silently deleted or treated as independently verified. This is local artifact handling only and does not change assessment behavior or network scope. See [Phase 2AE crash-safe audit artifact publication](docs/PHASE2AE_CRASH_SAFE_AUDIT_ARTIFACT_PUBLICATION.md).

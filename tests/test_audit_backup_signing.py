@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from apex_audit import append_audit_event
@@ -145,6 +146,13 @@ class AuditBackupSigningTests(unittest.TestCase):
             self._sign()
         self.assertFalse(self.signature.exists())
 
+
+
+    def test_signature_publication_failure_exposes_no_final_file(self):
+        with patch("apex_audit_backup_signing.write_exclusive_atomic", side_effect=OSError("simulated staging failure")):
+            with self.assertRaises(AuditBackupSignatureError):
+                self._sign()
+        self.assertFalse(self.signature.exists())
 
 if __name__ == "__main__":
     unittest.main()

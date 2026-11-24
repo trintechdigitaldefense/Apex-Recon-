@@ -5,9 +5,11 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from apex_audit import append_audit_event
 from apex_audit_backup import AuditBackupError, create_audit_backup, verify_audit_backup, restore_audit_backup
+from apex_storage import write_exclusive_atomic as atomic_publish
 
 class AuditBackupTests(unittest.TestCase):
     def setUp(self):
@@ -110,6 +112,33 @@ class AuditBackupTests(unittest.TestCase):
         self.backup.write_text('{"invalid":NaN}\n', encoding="utf-8")
         with self.assertRaises(AuditBackupError):
             verify_audit_backup(self.backup, self.checkpoint)
+
+
+    def test_failed_first_atomic_publish_leaves_no_partial_backup(self):
+        with patch("apex_audit_backup.write_exclusive_atomic", side_effect=OSError("simulated staging failure")):
+            with self.assertRaises(AuditBackupError):
+                create_audit_backup(self.audit, self.backup, self.checkpoint)
+        self.assertFalse(self.backup.exists())
+        self.assertFalse(self.checkpoint.exists())
+
+    def test_checkpoint_failure_preserves_complete_orphan_backup(self):
+        calls = {"count": 0}
+
+        def publish_then_fail_checkpoint(path, data, mode=0o600):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise OSError("simulated checkpoint publication failure")
+            return atomic_publish(path, data, mode=mode)
+
+        with patch("apex_audit_backup.write_exclusive_atomic", side_effect=publish_then_fail_checkpoint):
+            with self.assertRaisesRegex(AuditBackupError, "incomplete pair"):
+                create_audit_backup(self.audit, self.backup, self.checkpoint)
+
+        self.assertTrue(self.backup.exists())
+        self.assertFalse(self.checkpoint.exists())
+        payload = json.loads(self.backup.read_text(encoding="utf-8"))
+        self.assertEqual(base64.b64decode(payload["audit_jsonl_base64"]), self.audit.read_bytes())
+        self.assertEqual(self.backup.stat().st_mode & 0o777, 0o600)
 
 if __name__ == "__main__":
     unittest.main()
