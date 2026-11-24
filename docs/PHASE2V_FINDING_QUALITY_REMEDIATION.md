@@ -16,7 +16,7 @@ Make finding severity provenance and review ordering visible without inventing r
 - Add an explicit note that review priority is triage ordering, not a composite risk score or proof of exploitability.
 - Add `recommendation_status` so reports distinguish supplied remediation text from missing guidance.
 - Expose review priority and recommendation status in HTTP HTML, HTTP/TLS PDF, and unified engagement PDF reports.
-- Add regression tests for priority mapping, unknown severity handling, and missing recommendations.
+- Add regression tests for priority mapping, unknown severity handling, missing recommendations, unsupported schema versions, and legacy v1.0 compatibility.
 
 ## Interpretation limits
 
