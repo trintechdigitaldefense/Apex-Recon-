@@ -57,7 +57,9 @@ def _safe_url(value: Any) -> str:
             try:
                 port = parsed.port
             except ValueError:
-                port = None
+                # An invalid port is malformed URL syntax; do not preserve any
+                # portion of the original value in exported evidence.
+                return "[REDACTED_INVALID_URL]"
             safe_netloc = host + (f":{port}" if port is not None else "")
         return urlunsplit((parsed.scheme.lower(), safe_netloc, parsed.path, "", ""))
     except ValueError:
