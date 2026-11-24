@@ -16,6 +16,7 @@ on:
       - r1-phase1-validation
       - phase2-http-assessment
       - phase2b-http-cli-report
+      - phase2c-tls-assessment
 
 permissions:
   contents: read
