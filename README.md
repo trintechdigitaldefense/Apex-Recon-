@@ -45,6 +45,9 @@ See [Phase 2F evidence reliability](docs/PHASE2F_EVIDENCE_RELIABILITY.md).
 ### Milestone 2G: common finding schema (draft PR)
 Phase 2G introduces a shared, versioned finding structure for the HTTP and TLS modules. Findings now carry a stable identifier, source module, severity, status, confidence, evidence type, evidence text and remediation recommendation. Unknown values remain UNKNOWN; the normalizer does not promote severity or infer exploitability. JSON evidence exports preserve the normalized metadata. The existing SMB parser still uses legacy free-text findings and OSINT remains a raw collection workflow, so neither is represented as fully migrated by this milestone. See [Phase 2G cross-module finding consistency](docs/PHASE2G_CROSS_MODULE_FINDINGS.md).
 
+### Milestone 2H: SMB and OSINT finding integration (draft PR)
+Phase 2H adapts existing SMB parser fields and already-collected OSINT datasets into the Phase 2G common finding schema. SMB signing, share and Nmap NSE status records retain conservative classifications; missing checks remain UNKNOWN / UNASSESSED. OSINT DNS, WHOIS metadata, geolocation-provider metadata and observed top-20 TCP ports are represented as INFO observations, not vulnerability claims. Existing scan commands and authorization gates are unchanged. See [Phase 2H SMB and OSINT finding integration](docs/PHASE2H_SMB_OSINT_FINDINGS.md).
+
 
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
@@ -74,7 +77,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py tests
+python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.

@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2H SMB and OSINT finding integration
+
+### Added
+- Adapted existing SMB parser results to the shared finding schema while preserving legacy host fields and risk presentation.
+- Added explicit UNKNOWN / UNASSESSED records for missing or unrecognized required SMB checks.
+- Adapted collected OSINT DNS, WHOIS metadata, geolocation-provider metadata and top-20 TCP port observations to common-schema INFO records.
+- Kept OSINT data as observations; no vulnerability claims are inferred from collection output.
+- Added offline adapter and parser-integration tests.
+
+### Boundaries
+- No scan commands, request counts, target scope, authorization gates or network behavior changed.
+- No live targets contacted; no new OSINT export, combined engagement report, risk scoring, recurring scans or background monitoring.
+- Draft development only; no merge, release or client deployment.
+
+
 ## [2.0.1-dev] — Phase 2G common finding schema
 
 ### Added
