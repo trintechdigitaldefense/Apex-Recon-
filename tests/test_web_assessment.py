@@ -111,6 +111,15 @@ class HeaderAssessmentTests(unittest.TestCase):
         self.assertEqual(statuses["MIME_SNIFFING"], "PRESENT")
         self.assertEqual(statuses["CLICKJACKING_PROTECTION"], "PRESENT")
 
+    def test_findings_use_common_schema_with_observation_confidence(self):
+        findings = web._inspect_headers(self.headers(), "https")
+        finding = next(item for item in findings if item["check"] == "CSP")
+        self.assertEqual(finding["module"], "HTTP Security Assessment")
+        self.assertEqual(finding["severity"], "MEDIUM")
+        self.assertEqual(finding["confidence"], "HIGH")
+        self.assertEqual(finding["evidence_type"], "OBSERVATION")
+        self.assertTrue(finding["finding_id"].startswith("ARF-"))
+
     def test_missing_security_headers_are_not_marked_clean(self):
         findings = web._inspect_headers(self.headers(), "https")
         statuses = {item["check"]: item["status"] for item in findings}
