@@ -67,7 +67,17 @@ See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.
 - Existing recovered modules require `nmap`, `whois`, `dig` (dnsutils), and `curl`.
 - The HTTP and TLS assessment engines use only the Python standard library.
 
-## Run recovered CLI
+## Check installation and run ApexRecon
+
+Run the local dependency diagnostic before the first assessment:
+
+```bash
+python3 apex_doctor.py
+```
+
+For machine-readable output use `python3 apex_doctor.py --json`. Use `--strict` to require every listed external and optional dependency.
+
+Then start the recovered CLI:
 
 ```bash
 python3 apex_recon_v2.py
@@ -77,7 +87,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
+python3 -m compileall -q apex_doctor.py apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -172,3 +182,6 @@ Phase 2X keeps transport failures and unreachable endpoints unranked rather than
 
 ### Milestone 2Y: assessment report consistency (development)
 Phase 2Y aligns individual assessment PDF severity summaries with the existing HTTP HTML and unified engagement summaries by explicitly counting UNKNOWN findings. Unavailable checks remain visible as unranked results rather than disappearing from the executive count. This is a reporting and offline-test change only; assessment scope, request limits, authorization gates and network behavior are unchanged. See [Phase 2Y assessment report consistency](docs/PHASE2Y_ASSESSMENT_REPORT_CONSISTENCY.md).
+
+### Milestone 2Z: installation preflight and environment diagnostics (development)
+Phase 2Z adds an offline diagnostic for Python support, external command availability, optional PDF/signing dependencies, and the ApexRecon capabilities each enables. It provides Termux/Linux installation guidance and text/JSON output without installing packages or running assessment commands. HTTP/TLS assessment remains usable when unrelated OSINT/SMB tools are absent. No scan behavior or authorization gates change. See [Phase 2Z installation preflight](docs/PHASE2Z_INSTALLATION_PREFLIGHT.md).
