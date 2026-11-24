@@ -139,6 +139,36 @@ class ModuleAssemblyTests(unittest.TestCase):
         entries = assemble_module_results(selected, outcomes)
         self.assertTrue(all(entry["status"] == "FAILED" for entry in entries[:2]))
 
+    def test_before_run_checkpoint_failure_prevents_module_execution(self):
+        selected = {MODULE_NAMES[0]}
+        calls = []
+
+        def runner():
+            calls.append("ran")
+            return {"status": "COMPLETED", "target_scope": {"target": "example.com"}, "findings": []}
+
+        def checkpoint(_name):
+            raise OSError("journal unavailable")
+
+        outcomes = run_selected_modules(
+            selected, {MODULE_NAMES[0]: runner}, before_run=checkpoint
+        )
+        self.assertEqual(calls, [])
+        self.assertEqual(outcomes[MODULE_NAMES[0]]["status"], "FAILED")
+
+    def test_finish_checkpoint_failure_downgrades_result_to_failed(self):
+        selected = {MODULE_NAMES[0]}
+        outcomes = run_selected_modules(
+            selected,
+            {MODULE_NAMES[0]: lambda: {
+                "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                "findings": [],
+            }},
+            on_finish=lambda _name, _outcome: (_ for _ in ()).throw(OSError("journal failure")),
+        )
+        self.assertEqual(outcomes[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertIn("checkpointed", outcomes[MODULE_NAMES[0]]["limitations"][0])
+
     def test_runner_exception_does_not_prevent_later_selected_modules(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
         calls = []
