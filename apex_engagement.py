@@ -262,75 +262,135 @@ def export_engagement_json(record: dict, directory: str | os.PathLike[str] = "."
 
 
 def generate_engagement_pdf_bytes(record: dict) -> bytes:
+    """Render the verified engagement record with scope and evidence detail."""
     try:
         from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.platypus import (
+            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+            KeepTogether,
+        )
     except ImportError as exc:
         raise EngagementPDFDependencyError("PDF export requires ReportLab") from exc
     _require_valid(record)
     from xml.sax.saxutils import escape
+
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="EngagementTitle", parent=styles["Title"], textColor=colors.HexColor("#8f1728")))
-    styles.add(ParagraphStyle(name="EngagementSmall", parent=styles["BodyText"], fontSize=7, leading=9, wordWrap="CJK"))
-    def p(value: Any, style: str = "BodyText") -> Any:
-        return Paragraph(escape(str(value if value is not None else "")[:4000]), styles[style])
+    styles.add(ParagraphStyle(
+        name="EngagementTitle", parent=styles["Title"],
+        textColor=colors.HexColor("#8f1728"),
+    ))
+    styles.add(ParagraphStyle(
+        name="EngagementSmall", parent=styles["BodyText"],
+        fontSize=6.5, leading=8, wordWrap="CJK",
+    ))
+    styles.add(ParagraphStyle(
+        name="EngagementBody", parent=styles["BodyText"],
+        fontSize=8, leading=10, wordWrap="CJK",
+    ))
+
+    def p(value: Any, style: str = "EngagementBody") -> Any:
+        text = str(value if value is not None else "")
+        return Paragraph(escape(text[:8000]).replace("\\n", "<br/>"), styles[style])
+
     story = [
         p("APEXRECON", "EngagementTitle"),
         p("TRINTECH DIGITAL DEFENSE | CONFIDENTIAL SECURITY ASSESSMENT"),
-        Spacer(1, 5 * mm),
+        Spacer(1, 4 * mm),
         p("Unified Engagement Report", "Heading1"),
         p("Engagement ID: " + record["engagement"]["id"]),
         p("Generated: " + record["engagement"]["generated_at"]),
-        p("Target scope: " + json.dumps(record["engagement"]["target_scope"], ensure_ascii=False)),
         p("Overall status: " + record["engagement"]["status"]),
+        p("Target scope: " + json.dumps(record["engagement"]["target_scope"], ensure_ascii=False)),
         p("Executive Summary", "Heading2"),
         p("Modules: " + str(record["engagement"]["module_count"]) +
           " | Findings: " + str(record["summary"]["total_findings"])),
+        p("Module status counts: " + json.dumps(record["summary"]["module_status_counts"], sort_keys=True)),
         p("Severity counts: " + json.dumps(record["summary"]["finding_severity_counts"], sort_keys=True)),
         p("No composite risk score is calculated.", "Italic"),
-        p("Module Coverage", "Heading2"),
+        p("Module Coverage and Scope", "Heading2"),
     ]
-    module_rows = [[p("Module", "EngagementSmall"), p("Status", "EngagementSmall"),
-                    p("Findings", "EngagementSmall"), p("Duration (s)", "EngagementSmall")]]
+
+    module_rows = [[
+        p("Module", "EngagementSmall"), p("Status", "EngagementSmall"),
+        p("Findings", "EngagementSmall"), p("Duration (s)", "EngagementSmall"),
+    ]]
     for module in record["modules"]:
-        module_rows.append([p(module["module"], "EngagementSmall"), p(module["status"], "EngagementSmall"),
-                            p(module["finding_count"], "EngagementSmall"), p(module["duration_seconds"], "EngagementSmall")])
-    table = Table(module_rows, colWidths=[83 * mm, 30 * mm, 25 * mm, 30 * mm], repeatRows=1)
-    table.setStyle(TableStyle([
+        module_rows.append([
+            p(module["module"], "EngagementSmall"),
+            p(module["status"], "EngagementSmall"),
+            p(module["finding_count"], "EngagementSmall"),
+            p(module["duration_seconds"], "EngagementSmall"),
+        ])
+    module_table = Table(module_rows, colWidths=[105 * mm, 30 * mm, 25 * mm, 35 * mm], repeatRows=1)
+    module_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#253449")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#c8d0d9")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]))
-    story.extend([table, p("Consolidated Findings", "Heading2")])
-    finding_rows = [[p("Module", "EngagementSmall"), p("Severity", "EngagementSmall"),
-                     p("Check / Status", "EngagementSmall"), p("Evidence / Recommendation", "EngagementSmall")]]
+    story.extend([module_table, Spacer(1, 3 * mm)])
+
+    for module in record["modules"]:
+        scope_text = json.dumps(module["target_scope"], ensure_ascii=False, sort_keys=True)
+        details = [
+            p(module["module"] + " | " + module["status"], "Heading3"),
+            p("Target scope: " + scope_text),
+            p("Started: " + module["started_at"] + " | Completed: " + module["completed_at"]),
+        ]
+        if module["limitations"]:
+            details.extend(p("Limitation: " + item, "EngagementSmall")
+                           for item in module["limitations"])
+        else:
+            details.append(p("Module limitations: none reported.", "EngagementSmall"))
+        story.append(KeepTogether(details))
+
+    story.extend([p("Consolidated Findings", "Heading2")])
+    finding_rows = [[
+        p("Module", "EngagementSmall"), p("Severity", "EngagementSmall"),
+        p("Check / Status", "EngagementSmall"), p("Confidence", "EngagementSmall"),
+        p("Evidence type", "EngagementSmall"), p("Evidence", "EngagementSmall"),
+        p("Recommendation", "EngagementSmall"),
+    ]]
     for finding in record["evidence"]["findings"]:
         finding_rows.append([
-            p(finding["module"], "EngagementSmall"), p(finding["severity"], "EngagementSmall"),
-            p(finding["check"] + " / " + finding["status"], "EngagementSmall"),
-            p(finding["evidence"] + " | " + finding["recommendation"], "EngagementSmall"),
+            p(finding.get("module", ""), "EngagementSmall"),
+            p(finding.get("severity", ""), "EngagementSmall"),
+            p(finding.get("check", "") + " / " + finding.get("status", ""), "EngagementSmall"),
+            p(finding.get("confidence", "UNKNOWN"), "EngagementSmall"),
+            p(finding.get("evidence_type", "UNKNOWN"), "EngagementSmall"),
+            p(finding.get("evidence", ""), "EngagementSmall"),
+            p(finding.get("recommendation", ""), "EngagementSmall"),
         ])
-    finding_table = Table(finding_rows, colWidths=[38 * mm, 22 * mm, 48 * mm, 60 * mm], repeatRows=1)
+    if len(finding_rows) == 1:
+        finding_rows.append([p("No findings were supplied.", "EngagementSmall")] + [""] * 6)
+    finding_table = Table(
+        finding_rows,
+        colWidths=[31 * mm, 19 * mm, 39 * mm, 22 * mm, 27 * mm, 55 * mm, 55 * mm],
+        repeatRows=1,
+    )
     finding_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#253449")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#c8d0d9")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
     ]))
     story.extend([finding_table, p("Assessment Limitations", "Heading2")])
     for limitation in record["limitations"]:
         story.append(p("• " + limitation, "EngagementSmall"))
-    for module in record["modules"]:
-        for limitation in module["limitations"]:
-            story.append(p(module["module"] + ": " + limitation, "EngagementSmall"))
+
     import io
     output = io.BytesIO()
-    SimpleDocTemplate(output, pagesize=A4, rightMargin=14 * mm, leftMargin=14 * mm,
-                      topMargin=14 * mm, bottomMargin=14 * mm).build(story)
+    SimpleDocTemplate(
+        output, pagesize=landscape(A4), rightMargin=12 * mm,
+        leftMargin=12 * mm, topMargin=12 * mm, bottomMargin=12 * mm,
+    ).build(story)
     return output.getvalue()
 
 
