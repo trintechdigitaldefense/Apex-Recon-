@@ -1,3 +1,19 @@
+## [2.0.1-dev] — Phase 2N cryptographic evidence signing and verification
+
+### Added
+- Added optional detached Ed25519 signatures for structurally verified engagement JSON records.
+- Added encrypted PKCS#8 private-key generation with owner-only file permissions and exclusive file creation.
+- Added offline signature verification bound to the engagement UUID, canonical record digest and public-key fingerprint.
+- Added main-menu option 6 for key generation, signing and verification.
+- Added offline regression tests for round-trip verification, tampering, wrong keys, invalid envelopes, passphrases and file permissions.
+
+### Boundaries
+- Public-key identity must be trusted out of band; a valid signature alone does not identify a person or organization.
+- Signing does not prove assessment completeness, accuracy or authorization.
+- The signature covers the canonical JSON engagement record, not the PDF bytes.
+- No scans, network requests, background work or recurring monitoring.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 ## [2.0.1-dev] — Phase 2M assessment evidence integrity and report verification
 
 ### Added
