@@ -1,4 +1,5 @@
 """Offline tests for unified engagement reporting."""
+import hashlib
 import json
 import tempfile
 import unittest
@@ -35,6 +36,14 @@ def sample_modules():
     ]
 
 
+def refresh_checksum(record):
+    unsigned = {key: value for key, value in record.items() if key != "integrity"}
+    canonical = json.dumps(
+        unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    record["integrity"]["engagement_sha256"] = hashlib.sha256(canonical).hexdigest()
+
+
 class EngagementTests(unittest.TestCase):
     def test_builds_all_modules_and_marks_not_run(self):
         record = build_engagement_record({"engagement": "example engagement"}, sample_modules())
@@ -48,6 +57,35 @@ class EngagementTests(unittest.TestCase):
     def test_checksum_detects_tampering(self):
         record = build_engagement_record({"target": "example.com"}, sample_modules())
         record["evidence"]["findings"][0]["evidence"] = "tampered"
+        self.assertFalse(verify_engagement_record(record))
+
+    def test_rejects_inconsistent_summary_even_with_recomputed_checksum(self):
+        record = build_engagement_record({"target": "example.com"}, sample_modules())
+        record["summary"]["total_findings"] += 1
+        refresh_checksum(record)
+        self.assertFalse(verify_engagement_record(record))
+
+    def test_rejects_module_count_mismatch_even_with_recomputed_checksum(self):
+        record = build_engagement_record({"target": "example.com"}, sample_modules())
+        record["modules"][0]["finding_count"] += 1
+        refresh_checksum(record)
+        self.assertFalse(verify_engagement_record(record))
+
+    def test_rejects_duplicate_findings_even_with_recomputed_checksum(self):
+        record = build_engagement_record({"target": "example.com"}, sample_modules())
+        duplicate = dict(record["evidence"]["findings"][0])
+        record["evidence"]["findings"].append(duplicate)
+        record["modules"][0]["finding_count"] += 1
+        record["summary"]["total_findings"] += 1
+        record["summary"]["finding_severity_counts"][duplicate["severity"]] += 1
+        refresh_checksum(record)
+        self.assertFalse(verify_engagement_record(record))
+
+    def test_rejects_incomplete_module_set_even_with_recomputed_checksum(self):
+        record = build_engagement_record({"target": "example.com"}, sample_modules())
+        record["modules"].pop()
+        record["engagement"]["module_count"] = 3
+        refresh_checksum(record)
         self.assertFalse(verify_engagement_record(record))
 
     def test_requires_exact_four_unique_modules(self):
@@ -97,6 +135,8 @@ class EngagementTests(unittest.TestCase):
             raise
         self.assertTrue(pdf.startswith(b"%PDF-"))
         self.assertTrue(pdf.rstrip().endswith(b"%%EOF"))
+        self.assertIn(record["engagement"]["id"].encode("ascii"), pdf)
+        self.assertIn(record["integrity"]["engagement_sha256"].encode("ascii"), pdf)
 
     def test_pdf_renders_when_reportlab_available(self):
         record = build_engagement_record({"target": "example.com"}, sample_modules())
