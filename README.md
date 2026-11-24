@@ -227,3 +227,7 @@ Phase 2AJ expands offline fault-injection coverage for the create-only atomic ar
 
 ### Milestone 2AK: subprocess process-crash recovery tests (development)
 Phase 2AK adds isolated child-process termination tests at three publication boundaries: before artifact publication, between audit backup and checkpoint publication, and during restore staging. The tests use synthetic audit data, temporary directories and `os._exit` in child interpreters to bypass Python cleanup handlers. They verify no partial final artifact, fail-closed backup/checkpoint verification, and unchanged restore sources. They do not simulate power loss, kernel crashes, or storage-controller behavior. See [Phase 2AK process-crash recovery tests](docs/PHASE2AK_PROCESS_CRASH_RECOVERY_TESTS.md).
+
+
+### Milestone 2AL: local filesystem capability probe (development)
+Phase 2AL adds a non-destructive local probe for same-directory hard links, directory fsync, private file mode, and ApexRecon atomic artifact publication. It uses a small temporary workspace beneath an existing selected directory, reports available space where supported, and removes its own workspace. It does not consume storage, modify existing files, access networks, or establish power-loss durability. See [Phase 2AL filesystem capability probe](docs/PHASE2AL_FILESYSTEM_CAPABILITY_PROBE.md).
