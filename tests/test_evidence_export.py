@@ -90,6 +90,13 @@ class EvidenceExportTests(unittest.TestCase):
         else:
             self.assertTrue(pdf.startswith(b"%PDF-"))
             self.assertGreater(len(pdf), 1000)
+            with tempfile.TemporaryDirectory() as tmp:
+                pdf_path = Path(evidence.export_pdf(record, tmp))
+                self.assertTrue(pdf_path.read_bytes().startswith(b"%PDF-"))
+                if os.name == "posix":
+                    self.assertEqual(stat.S_IMODE(pdf_path.stat().st_mode), 0o600)
+                with self.assertRaises(FileExistsError):
+                    evidence.export_pdf(record, tmp)
 
 
 if __name__ == "__main__":
