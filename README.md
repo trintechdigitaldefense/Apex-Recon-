@@ -196,3 +196,6 @@ Phase 2AB expands the offline preflight to check the required project files, act
 
 ### Milestone 2AC: crash-safe assessment artifact publication (development)
 Phase 2AC stages HTTP/TLS evidence and unified engagement JSON/PDF outputs in hidden temporary files, flushes them, and publishes complete artifacts atomically without overwriting existing evidence. If interrupted before publication, a final report file is not exposed; a hidden staging file may require manual cleanup. The change is local storage behavior only and does not alter assessment scope or network behavior. See [Phase 2AC crash-safe artifact publication](docs/PHASE2AC_CRASH_SAFE_ARTIFACT_PUBLICATION.md).
+
+### Milestone 2AD: assessment execution recovery and evidence checkpoints (development)
+Phase 2AD adds a private hash-chained execution journal to unified engagements. Each selected module is checkpointed before execution and its returned outcome is saved as an atomic private sidecar before the finish event. Operators can inspect interrupted/incomplete runs and verify recovered module evidence without automatically resuming network activity. Existing target prompts, authorization gates and assessment scope remain unchanged. See [Phase 2AD assessment execution recovery](docs/PHASE2AD_ASSESSMENT_EXECUTION_RECOVERY.md).
