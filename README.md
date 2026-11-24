@@ -91,7 +91,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T is now improving HTTP header-value accuracy and response classification.
+- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T improved HTTP header-value accuracy and response classification. Phase 2U is improving HTTP evidence traceability and report consistency.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
@@ -151,3 +151,8 @@ Phase 2R hardens the bounded HTTP-to-HTTPS redirect handler. Redirects containin
 
 ### Milestone 2S: CSP policy quality observations (draft PR)
 Phase 2S extends the existing HTTP response-header review with conservative static Content-Security-Policy hardening observations. It flags selected risky source expressions (`unsafe-inline`, `unsafe-eval`, and wildcard sources), and reviews object-src and base-uri restrictions. These are review indicators, not proof of exploitability or a browser-policy verdict. The existing two-request, read-only HTTP scope is unchanged. See [Phase 2S CSP policy quality](docs/PHASE2S_CSP_POLICY_QUALITY.md).
+
+
+### Milestone 2U: HTTP evidence quality and report consistency (development)
+Phase 2U attaches bounded response provenance and the relevant observed header values to HTTP findings, while redacting Set-Cookie values and CSP nonce/hash tokens. It adds regression coverage for conflicting header combinations, response evidence, and HTML/JSON/optional PDF generation. It does not add requests, expand scope, or alter authorization gates. See [Phase 2U HTTP evidence quality and report consistency](docs/PHASE2U_HTTP_EVIDENCE_REPORT_QUALITY.md).
+
