@@ -1129,7 +1129,8 @@ def tls_assessment_module(*, engagement_mode=False):
 def unified_engagement_module():
     """Run selected existing modules and export one consolidated engagement."""
     from apex_engagement import build_engagement_record, export_engagement_json, export_engagement_pdf
-    from apex_engagement_cli import (MODULE_NAMES, parse_module_selection,\n                                     run_selected_modules, assemble_module_results)
+    from apex_engagement_cli import (MODULE_NAMES, parse_module_selection,
+                                     run_selected_modules, assemble_module_results)
 
     print_banner()
     print(f"{RED}[*] Unified Engagement — operator-selected modules{RESET}\n")
@@ -1153,8 +1154,7 @@ def unified_engagement_module():
         MODULE_NAMES[3]: tls_assessment_module,
     }
     def report_module_start(name):
-        print(f"
-{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
+        print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
 
     def report_module_error(name, exc):
         print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
