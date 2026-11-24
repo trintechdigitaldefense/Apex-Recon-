@@ -166,7 +166,7 @@ def verify_engagement_signature(
         return False
     if signature_envelope.get("engagement_id") != record.get("engagement", {}).get("id"):
         return False
-    InvalidSignature, serialization, Ed25519PrivateKey, Ed25519PublicKey = _crypto()
+    InvalidSignature, UnsupportedAlgorithm, serialization, Ed25519PrivateKey, Ed25519PublicKey = _crypto()
     try:
         public_key = serialization.load_pem_public_key(Path(public_key_path).read_bytes())
         if not isinstance(public_key, Ed25519PublicKey):
