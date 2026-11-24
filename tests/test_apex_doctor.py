@@ -93,6 +93,7 @@ class ApexDoctorTests(unittest.TestCase):
                             "pip_available": True, "venv_available": True},
             "project": {"root": ".", "required_files": {}, "complete": True,
                         "writable": True, "write_error": None},
+            "storage": {"checked": True, "compatible": True, "error": None, "probe": {"overall_atomic_storage_compatible": True, "temporary_artifacts_removed": True}},
             "tools": {}, "python_packages": {}, "capabilities": {},
         }
         with patch.object(doctor, "collect_diagnostics", return_value=stub):
@@ -167,6 +168,69 @@ class ApexDoctorTests(unittest.TestCase):
         self.assertIn("Artifact directory write test: WRITABLE", output)
         self.assertIn("same Python interpreter", output)
         self.assertIn("source .venv/bin/activate", output)
+
+
+    def test_storage_capability_is_checked_against_artifact_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            seen = []
+            def compatible_probe(parent):
+                seen.append(Path(parent))
+                return {
+                    "overall_atomic_storage_compatible": True,
+                    "temporary_artifacts_removed": True,
+                }
+            report = doctor.collect_diagnostics(
+                python_version=(3, 12, 0),
+                artifact_directory=directory,
+                storage_probe_fn=compatible_probe,
+            )
+        self.assertEqual(seen, [Path(directory)])
+        self.assertTrue(report["storage"]["checked"])
+        self.assertTrue(report["storage"]["compatible"])
+        self.assertTrue(report["capabilities"]["atomic_evidence_storage"])
+
+    def test_missing_hard_link_capability_blocks_storage_readiness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def incompatible_probe(parent):
+                return {
+                    "hard_links": {"supported": False},
+                    "atomic_publication": {"supported": False},
+                    "overall_atomic_storage_compatible": False,
+                    "temporary_artifacts_removed": True,
+                }
+            report = doctor.collect_diagnostics(
+                python_version=(3, 12, 0),
+                artifact_directory=directory,
+                storage_probe_fn=incompatible_probe,
+            )
+            self.assertFalse(report["storage"]["compatible"])
+            self.assertFalse(report["capabilities"]["atomic_evidence_storage"])
+            with patch.object(doctor, "collect_diagnostics", return_value=report):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = doctor.main([])
+        self.assertEqual(result, 1)
+
+    def test_storage_probe_exception_fails_closed(self):
+        def broken_probe(parent):
+            raise AttributeError("os.link is unavailable")
+        report = self.diagnose(
+            python_version=(3, 12, 0),
+            storage_probe_fn=broken_probe,
+        )
+        self.assertFalse(report["storage"]["compatible"])
+        self.assertIn("storage capability probe failed", report["storage"]["error"])
+
+    def test_readiness_report_identifies_atomic_storage_failure(self):
+        report = self.diagnose(
+            python_version=(3, 12, 0),
+            storage_probe_fn=lambda parent: {
+                "overall_atomic_storage_compatible": False,
+                "temporary_artifacts_removed": True,
+            },
+        )
+        output = doctor.render_report(report)
+        self.assertIn("Atomic evidence storage: UNSUPPORTED / NOT VERIFIED", output)
+        self.assertIn("Evidence-producing assessments are blocked", output)
 
 
 if __name__ == "__main__":
