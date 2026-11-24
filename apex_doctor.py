@@ -38,6 +38,7 @@ REQUIRED_PROJECT_FILES = (
     "apex_web.py",
     "apex_tls.py",
     "apex_doctor.py",
+    "apex_storage.py",
 )
 
 
