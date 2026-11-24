@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from apex_findings import FindingSchemaError, normalize_findings
+from apex_storage import write_exclusive_atomic
 
 SCHEMA_VERSION = "1.0"
 MODULES = {
@@ -346,24 +347,8 @@ def _require_valid(record: dict) -> None:
 
 
 def _write_exclusive(path: Path, data: bytes) -> str:
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        if os.name == "posix":
-            os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "wb") as handle:
-            fd = -1
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except Exception:
-        if fd >= 0:
-            os.close(fd)
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        raise
-    return str(path)
+    """Publish complete engagement bytes atomically without overwriting."""
+    return write_exclusive_atomic(path, data)
 
 
 def export_engagement_json(record: dict, directory: str | os.PathLike[str] = ".") -> str:
