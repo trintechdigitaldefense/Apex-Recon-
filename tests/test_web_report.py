@@ -26,6 +26,13 @@ class HTTPReportTests(unittest.TestCase):
                 "status": "MISSING",
                 "evidence": "<svg onload=alert(1)>",
                 "recommendation": "Use a safe policy.",
+            }, {
+                "check": "HTTPS_ENDPOINT",
+                "severity": "UNKNOWN",
+                "status": "UNAVAILABLE",
+                "evidence": "The endpoint could not be assessed.",
+                "recommendation": "Repeat the assessment when the service is reachable.",
+                "review_priority": "UNRANKED",
             }],
             "limitations": ["No exploitation performed."],
         }
@@ -39,6 +46,8 @@ class HTTPReportTests(unittest.TestCase):
                 self.assertIn("&lt;img", content)
                 self.assertIn("&lt;svg", content)
                 self.assertIn("No exploitation performed.", content)
+                self.assertIn("<strong>1</strong><span>Unknown</span>", content)
+                self.assertIn("UNKNOWN", content)
                 self.assertIn("test-assessment-123", content)
                 self.assertNotIn("<script>alert(1)</script>", content)
                 mode = stat.S_IMODE(Path(path).stat().st_mode)
