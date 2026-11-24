@@ -63,6 +63,13 @@ cd Apex-Recon-
 python3 apex_recon_v2.py
 ```
 
+## Phone-only validation and source review
+
+- [Phone-only validation procedure](docs/PHONE_ONLY_VALIDATION.md)
+- [R1 source review and known limitations](docs/R1_SOURCE_REVIEW.md)
+
+These procedures validate local behavior without starting a network scan. Live-network accuracy and client readiness require separate, authorized controlled testing.
+
 ## Test without scanning
 
 The automated test suite uses mocked command execution and synthetic Nmap output. It does not scan external hosts.
