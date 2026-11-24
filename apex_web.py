@@ -644,7 +644,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
                                      f"HTTP request ended on {final_scheme.upper()} (HTTP status {http_result.status}).",
                                      "Redirect all HTTP requests to the equivalent HTTPS URL and avoid serving sensitive content over HTTP."))
     else:
-        findings.append(_finding("HTTP_ENDPOINT", "INFO", "UNAVAILABLE",
+        findings.append(_finding("HTTP_ENDPOINT", "UNKNOWN", "UNAVAILABLE",
                                  f"HTTP endpoint could not be assessed: {type(http_result).__name__}.",
                                  "Confirm whether HTTP is intentionally disabled; verify HTTPS is available independently."))
 
@@ -669,7 +669,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
             https_result.final_url,
         )
     else:
-        findings.append(_finding("HTTPS_ENDPOINT", "MEDIUM", "UNAVAILABLE",
+        findings.append(_finding("HTTPS_ENDPOINT", "UNKNOWN", "UNAVAILABLE",
                                  f"HTTPS endpoint could not be assessed: {type(https_result).__name__}.",
                                  "Verify DNS, network reachability, certificate validity, and HTTPS listener configuration. TLS details are assessed in a separate phase."))
 
@@ -745,7 +745,7 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
     timestamp = escape(now.isoformat(timespec="seconds"))
     assessment_id = escape(str(result.get("assessment_id", "Not assigned")))
     counts = {level: sum(1 for item in findings if str(item.get("severity", "INFO")).upper() == level)
-              for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")}
+              for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN")}
 
     rows = []
     for item in findings:
@@ -787,7 +787,7 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
     fingerprint_html = "".join(fingerprint_rows)
     summary_cards = "".join(
         f"<div class='stat'><strong>{counts[level]}</strong><span>{level.title()}</span></div>"
-        for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+        for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN")
     )
     html = f"""<!doctype html>
 <html lang="en">
@@ -804,7 +804,7 @@ main{{max-width:1180px;margin:0 auto;padding:28px 18px 48px}}header,.panel{{back
 .stat{{background:var(--panel);border:1px solid var(--line);padding:14px;border-radius:9px}}.stat strong{{display:block;font-size:25px}}.stat span{{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
 .notice{{border-left:4px solid var(--gold);padding:10px 14px;background:#292516;color:#f6e8b2;border-radius:4px}}
 .table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:850px}}th,td{{text-align:left;vertical-align:top;padding:11px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}}th{{color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
-.severity{{font-weight:800;font-size:11px}}.critical,.high{{color:var(--red)}}.medium{{color:var(--orange)}}.low{{color:var(--gold)}}.info{{color:var(--cyan)}}
+.severity{{font-weight:800;font-size:11px}}.critical,.high{{color:var(--red)}}.medium{{color:var(--orange)}}.low{{color:var(--gold)}}.info{{color:var(--cyan)}}.unknown{{color:var(--muted)}}
 li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
 @media print{{body{{background:#fff;color:#111}}header,.panel,.stat{{background:#fff;color:#111;border-color:#ccc}}.meta,li,footer{{color:#333}}.notice{{background:#fff8dc;color:#222}}}}
 </style>
