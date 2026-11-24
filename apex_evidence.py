@@ -13,6 +13,7 @@ import stat
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
 
@@ -41,6 +42,18 @@ def _iso(value: datetime) -> str:
 def _clean_text(value: Any, limit: int = 4000) -> str:
     text = str(value if value is not None else "")
     return text[:limit]
+
+
+def _safe_url(value: Any) -> str:
+    """Keep URL evidence free of query parameters and fragments."""
+    raw = _clean_text(value, 2000)
+    try:
+        parsed = urlsplit(raw)
+        if parsed.scheme and parsed.netloc:
+            return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", "", ""))
+    except ValueError:
+        pass
+    return raw
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -138,7 +151,8 @@ def build_evidence_record(
             "findings": finding_records,
             "fingerprints": fingerprints,
             "technical_details": {
-                key: result.get(key) for key in (
+                key: (_safe_url(result.get(key)) if key in ("http_final_url", "https_final_url") else result.get(key))
+                for key in (
                     "http_status", "http_final_scheme", "http_redirected_to_https",
                     "https_status", "http_final_url", "https_final_url", "port",
                     "verified", "protocol", "cipher", "certificate", "error_type",
@@ -185,7 +199,7 @@ def export_json(record: dict, directory: str | os.PathLike[str] = ".") -> str:
     if not assessment_id or any(ch not in "0123456789abcdef-" for ch in assessment_id.lower()):
         raise EvidenceExportError("invalid assessment ID")
     path = Path(directory) / f"apex_evidence_{assessment_id}.json"
-    data = json.dumps(record, indent=2, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\\n"
+    data = json.dumps(record, indent=2, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
     return _write_exclusive(path, data)
 
 
