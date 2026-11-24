@@ -972,6 +972,8 @@ def http_assessment_module():
         log(f"HTTP assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
         return
 
+    artifacts = save_evidence_exports(result, duration)
+
     summary = {
         "target": result.get("target"),
         "path": result.get("path"),
@@ -983,7 +985,6 @@ def http_assessment_module():
     }
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
-    artifacts = save_evidence_exports(result, duration)
     print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
@@ -1033,6 +1034,8 @@ def tls_assessment_module():
         log(f"TLS assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
         return
 
+    artifacts = save_evidence_exports(result, duration)
+
     summary = {
         "target": result.get("target"),
         "port": result.get("port"),
@@ -1045,7 +1048,6 @@ def tls_assessment_module():
     }
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
-    artifacts = save_evidence_exports(result, duration)
     print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
