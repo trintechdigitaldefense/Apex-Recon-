@@ -57,7 +57,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install optional native PDF dependency
+      - name: Install optional PDF and signing dependencies
         run: python -m pip install -r requirements-pdf.txt -r requirements-crypto.txt
       - name: Compile source and tests
         run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py tests
