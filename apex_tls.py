@@ -151,7 +151,7 @@ def assess_tls(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         "not_before": certificate.get("notBefore"),
         "not_after": certificate.get("notAfter"),
         "subject_alt_names": [
-            f"{kind}:{name}" for kind, name in certificate.get("subjectAltName", [])[:30]
+            f"{kind}:{name}" for kind, name in (certificate.get("subjectAltName") or [])[:30]
         ],
     }
     findings = [
@@ -179,13 +179,13 @@ def assess_tls(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
                     f"Certificate notAfter is {expiry.isoformat()}.",
                     "Renew and deploy a valid certificate immediately.",
                 ))
-            elif days_remaining <= 7:
+            elif remaining_seconds <= 7 * 86400:
                 findings.append(_finding(
                     "CERTIFICATE_EXPIRY", "HIGH", "EXPIRING_WITHIN_7_DAYS",
                     f"Certificate expires in approximately {days_remaining} day(s), at {expiry.isoformat()}.",
                     "Renew and deploy the certificate before expiry; verify the full chain after deployment.",
                 ))
-            elif days_remaining <= 30:
+            elif remaining_seconds <= 30 * 86400:
                 findings.append(_finding(
                     "CERTIFICATE_EXPIRY", "MEDIUM", "EXPIRING_WITHIN_30_DAYS",
                     f"Certificate expires in approximately {days_remaining} day(s), at {expiry.isoformat()}.",
