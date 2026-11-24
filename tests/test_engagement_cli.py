@@ -1,7 +1,8 @@
 """Offline tests for Phase 2J unified engagement CLI helpers."""
 import unittest
 
-from apex_engagement_cli import (MODULE_NAMES, assemble_module_results, parse_module_selection,\n                                 run_selected_modules)
+from apex_engagement_cli import (MODULE_NAMES, assemble_module_results, parse_module_selection,
+                                 run_selected_modules)
 from apex_engagement import build_engagement_record, verify_engagement_record
 
 
