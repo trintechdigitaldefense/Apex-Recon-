@@ -36,6 +36,11 @@ Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu opt
 ### Milestone 2E: professional reporting and evidence (draft PR)
 HTTP and TLS assessment runs now produce a versioned JSON evidence record with a unique assessment ID, scope, timestamps, duration, findings, fingerprint confidence, provenance, limitations and a SHA-256 assessment checksum. When optional ReportLab support is installed, ApexRecon also creates a native PDF report. Artifacts use exclusive file creation and owner-only permissions on POSIX systems. The checksum is not a digital signature or immutable storage guarantee. See [Phase 2E reporting and evidence](docs/PHASE2E_PROFESSIONAL_REPORTING_EVIDENCE.md).
 
+### Milestone 2F: evidence quality and export reliability (draft PR)
+Phase 2F adds checksum verification before evidence is exported or rendered, stricter assessment UUID validation, URL credential/query/fragment redaction, and graceful handling of PDF-generation failures so a valid JSON evidence artifact remains available. The work is offline-testable and does not add scan requests or alter target interaction.
+
+See [Phase 2F evidence reliability](docs/PHASE2F_EVIDENCE_RELIABILITY.md).
+
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
 ## R1 stabilization and privacy
@@ -78,7 +83,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- HTTP, TLS, fingerprinting and Phase 2E evidence/reporting work remains in stacked draft PRs pending their respective review and validation.
+- HTTP, TLS, fingerprinting, Phase 2E reporting and Phase 2F evidence reliability work remains in stacked draft PRs pending their respective review and validation.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
