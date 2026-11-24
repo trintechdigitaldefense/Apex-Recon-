@@ -15,11 +15,13 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from apex_fingerprint import fingerprint
+
 
 USER_AGENT = "ApexRecon/2.1-dev (+authorized security assessment)"
 DEFAULT_TIMEOUT = 8.0
 MAX_TIMEOUT = 20.0
-MAX_RESPONSE_BYTES = 1024  # Request a small byte range; response bodies are never consumed.
+MAX_RESPONSE_BYTES = 16384  # Hard cap on HTML bytes read for passive fingerprinting.
 
 
 class AssessmentInputError(ValueError):
@@ -35,6 +37,7 @@ class FetchResult:
     status: int
     headers: Any
     final_url: str
+    body: bytes = b""
 
 
 class SameHostRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -100,6 +103,7 @@ def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
             "Range": f"bytes=0-{MAX_RESPONSE_BYTES - 1}",
             "Connection": "close",
+            "Accept-Encoding": "identity",
         },
         method="GET",
     )
@@ -110,10 +114,18 @@ def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
         # HTTP 4xx/5xx is still a valid HTTP response whose headers can be assessed.
         response = exc
     with response:
+        content_type = str(response.headers.get("Content-Type", "")).lower()
+        body = b""
+        if "text/html" in content_type or "application/xhtml+xml" in content_type:
+            try:
+                body = response.read(MAX_RESPONSE_BYTES)
+            except (TimeoutError, socket.timeout, OSError):
+                body = b""
         return FetchResult(
             status=int(response.getcode()),
             headers=response.headers,
             final_url=response.geturl(),
+            body=body,
         )
 
 
@@ -260,6 +272,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         except (urllib.error.URLError, TimeoutError, socket.timeout, ssl.SSLError, OSError) as exc:
             https_result = exc
 
+    fingerprints = fingerprint(https_result.headers, https_result.body) if isinstance(https_result, FetchResult) else []
     findings = []
     if isinstance(http_result, FetchResult):
         final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower()
@@ -308,9 +321,11 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         "http_final_url": _safe_url(http_result.final_url) if isinstance(http_result, FetchResult) else None,
         "https_final_url": _safe_url(https_result.final_url) if isinstance(https_result, FetchResult) else None,
         "findings": findings,
+        "fingerprints": fingerprints,
         "limitations": [
             "One URL path only; no crawling or common-path discovery.",
-            "At most two read-only GET requests; response bodies are not analysed.",
+            f"At most two read-only GET requests; at most {MAX_RESPONSE_BYTES} HTML bytes are read for passive fingerprinting.",
+            "CMS and technology fingerprints are heuristic observations, not proof of installed components or versions.",
             "Header presence is not proof that a policy is correctly configured or effective.",
             "No vulnerability exploitation or authenticated workflow testing is performed.",
             "TLS certificate and protocol analysis is outside this HTTP milestone.",
@@ -370,6 +385,25 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
         rows.append("<tr><td colspan='5'>No findings were returned. This is not proof of security.</td></tr>")
 
     limit_items = "".join(f"<li>{escape(str(item))}</li>" for item in limitations)
+    fingerprints = result.get("fingerprints", [])
+    fingerprint_rows = []
+    for item in fingerprints if isinstance(fingerprints, list) else []:
+        if not isinstance(item, dict):
+            continue
+        markers = ", ".join(str(marker) for marker in item.get("evidence", [])[:8])
+        version = f" {item.get('version')}" if item.get("version") else ""
+        fingerprint_rows.append(
+            "<tr>"
+            f"<td>{escape(str(item.get('category', 'Technology')))}</td>"
+            f"<td>{escape(str(item.get('name', 'Unknown')))}{escape(version)}</td>"
+            f"<td>{escape(str(item.get('confidence', 'unknown')).upper())}</td>"
+            f"<td>{escape(markers)}</td>"
+            f"<td>{escape(str(item.get('source', '')))}</td>"
+            "</tr>"
+        )
+    if not fingerprint_rows:
+        fingerprint_rows.append("<tr><td colspan='5'>No fingerprints observed in the bounded response sample. This does not establish absence.</td></tr>")
+    fingerprint_html = "".join(fingerprint_rows)
     summary_cards = "".join(
         f"<div class='stat'><strong>{counts[level]}</strong><span>{level.title()}</span></div>"
         for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
@@ -407,6 +441,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <div class="table-wrap"><table><thead><tr><th>Severity</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommended action</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
 </section>
+<section class="panel"><h2>CMS and Technology Fingerprints</h2><p class="meta">Passive fingerprints from response headers and a capped HTML sample. Confidence describes fingerprint strength, not certainty that a component is installed.</p><div class="table-wrap"><table><thead><tr><th>Category</th><th>Observed</th><th>Confidence</th><th>Evidence markers</th><th>Source</th></tr></thead><tbody>{fingerprint_html}</tbody></table></div></section>
 <section class="panel"><h2>Assessment Limitations</h2><ul>{limit_items}</ul></section>
 <footer>CONFIDENTIAL — Intended only for personnel authorized to receive this assessment.<br>TrinTech Digital Defense · ApexRecon · Operator-initiated assessment</footer>
 </main></body></html>"""
