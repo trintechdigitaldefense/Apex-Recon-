@@ -107,7 +107,7 @@ def _validate_outcome(name, outcome):
     return result
 
 
-def run_selected_modules(selected, runners, on_error=None):
+def run_selected_modules(selected, runners, on_start=None, on_error=None):
     """Run selected module callables in stable order, isolating each exception."""
     if isinstance(selected, (str, bytes)):
         raise ValueError("selected must be a collection of module names")
@@ -120,6 +120,8 @@ def run_selected_modules(selected, runners, on_error=None):
     for name in MODULE_NAMES:
         if name not in selected:
             continue
+        if callable(on_start):
+            on_start(name)
         runner = runners.get(name)
         try:
             if not callable(runner):
