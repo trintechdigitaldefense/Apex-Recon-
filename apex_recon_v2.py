@@ -12,6 +12,7 @@ import json
 import socket
 import subprocess
 import time
+import uuid
 import ipaddress
 import shutil
 import math
@@ -965,6 +966,7 @@ def http_assessment_module():
         print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
         print(f"         {finding.get('evidence', '')}")
 
+    result["assessment_id"] = str(uuid.uuid4())
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
@@ -1027,6 +1029,7 @@ def tls_assessment_module():
         print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
         print(f"         {finding.get('evidence', '')}")
 
+    result["assessment_id"] = str(uuid.uuid4())
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
