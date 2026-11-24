@@ -16,6 +16,8 @@ on:
       - phase2h-smb-osint-findings
       - phase2i-unified-engagement-reporting
       - phase2j-unified-cli-engagement
+      - phase2k-engagement-reliability
+      - phase2l-engagement-report-quality
   pull_request:
     branches:
       - main
@@ -31,6 +33,7 @@ on:
       - phase2h-smb-osint-findings
       - phase2i-unified-engagement-reporting
       - phase2j-unified-cli-engagement
+      - phase2k-engagement-reliability
 
 permissions:
   contents: read
