@@ -153,6 +153,13 @@ class HeaderAssessmentTests(unittest.TestCase):
         finding = next(f for f in findings if f["check"] == "MIME_SNIFFING")
         self.assertEqual(finding["status"], "INVALID")
 
+    def test_duplicate_mime_header_values_are_ambiguous(self):
+        headers = Message()
+        headers.add_header("X-Content-Type-Options", "nosniff")
+        headers.add_header("X-Content-Type-Options", "invalid")
+        finding = next(f for f in web._inspect_headers(headers, "https") if f["check"] == "MIME_SNIFFING")
+        self.assertEqual(finding["status"], "AMBIGUOUS")
+
     def test_referrer_policy_uses_last_recognized_token(self):
         findings = web._inspect_headers(
             self.headers({"Referrer-Policy": "unknown-policy, no-referrer, strict-origin"}),
