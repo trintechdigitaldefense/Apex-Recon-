@@ -1,6 +1,22 @@
 # Changelog
 
-## [2.0.1-dev] — Phase 2H SMB and OSINT finding integration
+## [2.0.1-dev] — Phase 2I unified engagement reporting
+
+### Added
+- Added an offline engagement builder combining the four supported ApexRecon module result types under one UUID.
+- Added per-module status, target scope, timestamps, duration, finding counts and limitations, including explicit NOT_RUN and FAILED states.
+- Consolidated normalized findings and transparent severity counts without calculating a composite risk score.
+- Added canonical SHA-256 integrity verification and exclusive JSON/PDF export with owner-only POSIX permissions.
+- Added optional native PDF generation through the existing ReportLab dependency.
+- Added offline tests for completeness, module status, validation, checksum tampering, export exclusivity and PDF rendering.
+
+### Boundaries
+- This phase adds the aggregation and export API; it does not yet orchestrate all four interactive CLI modules in one run.
+- No scan commands, network requests, authorization gates or target interaction changed.
+- No live targets contacted; no digital signature, immutable vault, central storage, recurring scans or background monitoring.
+- Draft development only; no merge, release or client deployment.
+
+# [2.0.1-dev] — Phase 2H SMB and OSINT finding integration
 
 ### Added
 - Adapted existing SMB parser results to the shared finding schema while preserving legacy host fields and risk presentation.
