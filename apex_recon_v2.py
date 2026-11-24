@@ -780,57 +780,75 @@ def osint_module(*, engagement_mode=False):
     started = time.time()
     log(f"OSINT scan started on domain: {domain}")
     results = {}
+    missing_osint_tools = []
 
     # ── DNS Records ──────────────────────────────
     print(f"\n{CYAN}[+] Resolving DNS records...{RESET}")
-    for rtype in ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "CAA"]:
-        out, err = run_cmd(["dig", "+short", rtype, domain])
-        if out:
-            results[f"DNS_{rtype}"] = out.splitlines()
-            print(f"  {GREY}{rtype:6}{RESET} → {WHITE}{out.replace(chr(10), ', ')}{RESET}")
-        else:
-            print(f"  {GREY}{rtype:6}{RESET} → {RED}No record{RESET}")
+    if shutil.which("dig") is None:
+        missing_osint_tools.append("dig (DNS records)")
+        print(f"  {YELLOW}[!] NOT ASSESSED: dig is not installed; no DNS conclusion is available.{RESET}")
+    else:
+        for rtype in ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "CAA"]:
+            out, err = run_cmd(["dig", "+short", rtype, domain])
+            if out:
+                results[f"DNS_{rtype}"] = out.splitlines()
+                print(f"  {GREY}{rtype:6}{RESET} → {WHITE}{out.replace(chr(10), ', ')}{RESET}")
+            else:
+                print(f"  {GREY}{rtype:6}{RESET} → {YELLOW}No response / no record; result not independently classified{RESET}")
 
     # ── WHOIS ────────────────────────────────────
     print(f"\n{CYAN}[+] Running WHOIS lookup...{RESET}")
-    out, _ = run_cmd(["whois", domain], timeout=30)
-    if out:
-        important = []
-        for line in out.splitlines():
-            for kw in ["Registrar:", "Creation Date:", "Expiry Date:", "Updated Date:",
-                       "Name Server:", "Registrant", "Admin", "Tech"]:
-                if kw.lower() in line.lower():
-                    important.append(line.strip())
-                    break
-        results["WHOIS"] = important
-        for line in important[:12]:
-            print(f"  {GREY}{line}{RESET}")
+    if shutil.which("whois") is None:
+        missing_osint_tools.append("whois")
+        print(f"  {YELLOW}[!] NOT ASSESSED: whois is not installed.{RESET}")
+    else:
+        out, _ = run_cmd(["whois", domain], timeout=30)
+        if out:
+            important = []
+            for line in out.splitlines():
+                for kw in ["Registrar:", "Creation Date:", "Expiry Date:", "Updated Date:",
+                           "Name Server:", "Registrant", "Admin", "Tech"]:
+                    if kw.lower() in line.lower():
+                        important.append(line.strip())
+                        break
+            results["WHOIS"] = important
+            for line in important[:12]:
+                print(f"  {GREY}{line}{RESET}")
 
     # ── IP Geolocation ───────────────────────────
     print(f"\n{CYAN}[+] Geolocating IP...{RESET}")
-    ip = resolve_target_ip(domain)
-    if ip:
-        out, _ = run_cmd(["curl", "-s", f"https://ipinfo.io/{ip}/json"], timeout=15)
-        if out:
-            try:
-                geo = json.loads(out)
-                results["GEO"] = geo
-                for k in ["ip", "city", "region", "country", "org", "timezone"]:
-                    if k in geo:
-                        print(f"  {GREY}{k:12}{RESET} → {WHITE}{geo[k]}{RESET}")
-            except (json.JSONDecodeError, TypeError):
-                print(f"  {GREY}Raw: {out[:200]}{RESET}")
+    if shutil.which("curl") is None:
+        missing_osint_tools.append("curl (GeoIP)")
+        print(f"  {YELLOW}[!] NOT ASSESSED: curl is not installed; GeoIP lookup was skipped.{RESET}")
     else:
-        print(f"  {YELLOW}[!] No IP address could be resolved for geolocation.{RESET}")
+        ip = resolve_target_ip(domain)
+        if ip:
+            out, _ = run_cmd(["curl", "-s", f"https://ipinfo.io/{ip}/json"], timeout=15)
+            if out:
+                try:
+                    geo = json.loads(out)
+                    results["GEO"] = geo
+                    for k in ["ip", "city", "region", "country", "org", "timezone"]:
+                        if k in geo:
+                            print(f"  {GREY}{k:12}{RESET} → {WHITE}{geo[k]}{RESET}")
+                except (json.JSONDecodeError, TypeError):
+                    print(f"  {GREY}Raw: {out[:200]}{RESET}")
+        else:
+            print(f"  {YELLOW}[!] No IP address could be resolved for geolocation.{RESET}")
 
     # ── Open Ports (Quick Top 20) ────────────────
     print(f"\n{CYAN}[+] Scanning common external ports (top 20)...{RESET}")
-    log(f"OSINT port scan on {domain}")
-    out, err = run_cmd(build_osint_port_scan_command(domain), timeout=90)
+    if shutil.which("nmap") is None:
+        missing_osint_tools.append("nmap (port scan)")
+        print(f"  {YELLOW}[!] NOT ASSESSED: nmap is not installed; port scan was skipped.{RESET}")
+    else:
+        log(f"OSINT port scan on {domain}")
+        out, err = run_cmd(build_osint_port_scan_command(domain), timeout=90)
 
-    if "NOT_FOUND" in err:
-        print(f"  {RED}nmap not installed — apt-get install nmap{RESET}")
-    elif out:
+        if "NOT_FOUND" in err:
+            missing_osint_tools.append("nmap (port scan)")
+            print(f"  {RED}nmap became unavailable before the port scan could start.{RESET}")
+        elif out:
         results["PORTS"] = out
         # Print only port lines
         for line in out.splitlines():
@@ -846,10 +864,12 @@ def osint_module(*, engagement_mode=False):
     log(f"OSINT complete for {domain}: {json.dumps(results, indent=2)}")
 
     duration = round(time.time() - started, 2)
-    osint_status = "COMPLETED" if results.get("structured_findings") else "PARTIAL"
+    osint_status = "COMPLETED" if results.get("structured_findings") and not missing_osint_tools else "PARTIAL"
     osint_limitations = ["OSINT collection is best-effort; missing records are not negative security results.",
                          "The existing GeoIP workflow sends the resolved target IP to ipinfo.io."]
-    if osint_status == "PARTIAL":
+    if missing_osint_tools:
+        osint_limitations.append("Not assessed because required local tools were unavailable: " + ", ".join(missing_osint_tools) + ".")
+    if not results.get("structured_findings"):
         osint_limitations.append("No structured OSINT observations were collected during this run.")
     module_result = _engagement_module_result(
         "External Footprinting (OSINT)", osint_status, {"target": domain},
