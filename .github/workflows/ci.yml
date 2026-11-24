@@ -56,6 +56,7 @@ on:
       - phase2t-http-header-accuracy
       - phase2u-http-evidence-report-quality
       - phase2v-finding-quality-remediation
+      - phase2w-assessment-accuracy-fp-reduction
 
 permissions:
   contents: read
