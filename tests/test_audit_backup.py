@@ -35,7 +35,10 @@ class AuditBackupTests(unittest.TestCase):
 
     def test_tampered_backup_detected(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
-        self.backup.write_text(self.backup.read_text().replace("ENGAGEMENT_SIGNED", "SIGNATURE_REJECTED"))
+        data = json.loads(self.backup.read_text())
+        raw = base64.b64decode(data["audit_jsonl_base64"]).replace(b"ENGAGEMENT_SIGNED", b"SIGNATURE_REJECTED")
+        data["audit_jsonl_base64"] = base64.b64encode(raw).decode("ascii")
+        self.backup.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")) + "\\n")
         with self.assertRaises(AuditBackupError):
             verify_audit_backup(self.backup, self.checkpoint)
 
