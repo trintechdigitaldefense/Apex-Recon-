@@ -1,6 +1,6 @@
 """Offline tests for Phase 2AP assessment preflight enforcement."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import apex_recon_v2 as apex
 
@@ -46,7 +46,7 @@ class AssessmentPreflightTests(unittest.TestCase):
         self.assertTrue(any("Python runtime" in item for item in result["reasons"]))
 
     def test_preflight_failure_prevents_runner_execution(self):
-        runner = unittest.mock.Mock()
+        runner = Mock()
         report = ready_report()
         report["storage"]["compatible"] = False
         with patch("builtins.print"):
