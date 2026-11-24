@@ -23,12 +23,12 @@ The probe never creates the parent directory. It creates and removes only a uniq
 
 ## Report fields
 
-- `hard_links`: whether a same-directory hard link could be created and read.
+- `hard_links`: whether a same-directory hard link could be created and read, and whether link/unlink left unexpected helper entries.
 - `directory_fsync`: whether the probe directory could be opened and synchronized.
 - `private_file_mode_0600`: observed POSIX mode for a file published by ApexRecon's atomic helper. Non-POSIX platforms report this as not evaluated.
-- `atomic_publication`: whether the actual `write_exclusive_atomic` helper published and verified exact bytes.
+- `atomic_publication`: whether the actual `write_exclusive_atomic` helper published and verified exact bytes, and whether its staging cleanup left unexpected entries.
 - `free_bytes_before/after`: informational available-space observations where `statvfs` exists.
-- `temporary_artifacts_removed`: whether the probe directory was removed.
+- `temporary_artifacts_removed`: whether the probe directory was removed. Cleanup uses bounded retries for compatibility filesystems that create helper sidecars during link/unlink; any remaining cleanup failure is reported in `temporary_cleanup_error` rather than masking the capability JSON.
 - `overall_atomic_storage_compatible`: true only when hard links, directory fsync, atomic publication, content verification and cleanup all pass.
 
 Exit code 0 means the required atomic-storage checks passed. Exit code 1 means one or more capabilities are unsupported or failed. Exit code 2 means the requested parent could not be used.
