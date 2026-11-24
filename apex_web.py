@@ -324,7 +324,8 @@ def _attach_response_evidence(
             observations.append(
                 f"{name}: " + " | ".join(repr(value[:350]) for value in rendered[:4])
             )
-        context = f"Response provenance: HTTPS status {int(status)} at {safe_url}."
+        response_scheme = urllib.parse.urlsplit(final_url).scheme.upper() or "UNKNOWN"
+        context = f"Response provenance: {response_scheme} status {int(status)} at {safe_url}."
         if observations:
             context += " Observed: " + "; ".join(observations) + "."
         updated = normalize_finding(
