@@ -42,6 +42,7 @@ on:
       - phase2ah-atomic-audit-backup-publication
       - phase2ai-controlled-recovery-drill-runbooks
       - phase2aj-atomic-storage-edge-case-tests
+      - phase2ak-process-crash-recovery-tests
   pull_request:
     branches:
       - main
