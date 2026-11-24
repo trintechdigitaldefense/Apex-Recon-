@@ -33,6 +33,9 @@ A separate standard-library engine in `apex_web.py` performs up to two read-only
 
 Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Phase 2D extends menu option 3 with passive CMS and frontend technology fingerprints from response headers and at most 16 KiB of HTML across the existing two-request limit. Fingerprints include evidence markers and confidence; versions are reported only from an explicit numeric CMS generator tag. No extra paths or requests are introduced. The modules do not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. The HTTP, TLS and fingerprinting changes remain stacked development drafts until reviewed and validated.
 
+### Milestone 2E: professional reporting and evidence (draft PR)
+HTTP and TLS assessment runs now produce a versioned JSON evidence record with a unique assessment ID, scope, timestamps, duration, findings, fingerprint confidence, provenance, limitations and a SHA-256 assessment checksum. When optional ReportLab support is installed, ApexRecon also creates a native PDF report. Artifacts use exclusive file creation and owner-only permissions on POSIX systems. The checksum is not a digital signature or immutable storage guarantee. See [Phase 2E reporting and evidence](docs/PHASE2E_PROFESSIONAL_REPORTING_EVIDENCE.md).
+
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
 ## R1 stabilization and privacy
@@ -61,7 +64,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py tests
+python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -75,10 +78,10 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- The HTTP, TLS and fingerprinting CLI/report work is in stacked draft PRs; Phase 2C has passed local phone validation, while Phase 2D still requires CI and phone validation.
+- HTTP, TLS, fingerprinting and Phase 2E evidence/reporting work remains in stacked draft PRs pending their respective review and validation.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
-- Native PDF export is not implemented; the current recovered report is HTML.
+- Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
 - Legacy SMB vulnerability checks are indicators and require independent verification.
 - No multi-tenant service, scheduling, continuous monitoring, or unattended 24-hour operation is provided.
 

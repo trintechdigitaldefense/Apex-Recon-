@@ -9,6 +9,8 @@ on:
       - phase2-http-assessment
       - phase2b-http-cli-report
       - phase2c-tls-assessment
+      - phase2d-cms-technology-fingerprinting
+      - phase2e-professional-evidence-reporting
   pull_request:
     branches:
       - main
@@ -17,6 +19,8 @@ on:
       - phase2-http-assessment
       - phase2b-http-cli-report
       - phase2c-tls-assessment
+      - phase2d-cms-technology-fingerprinting
+      - phase2e-professional-evidence-reporting
 
 permissions:
   contents: read
@@ -36,8 +40,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install optional native PDF dependency
+        run: python -m pip install -r requirements-pdf.txt
       - name: Compile source and tests
-        run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py tests
+        run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
@@ -57,4 +63,4 @@ jobs:
           sudo apt-get install -y nmap whois dnsutils curl
       - name: Verify dependency detection and safe startup imports
         run: |
-          python -c "import apex_recon_v2 as apex; import apex_web; import apex_tls; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"
+          python -c "import apex_recon_v2 as apex; import apex_web; import apex_tls; import apex_fingerprint; import apex_evidence; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"

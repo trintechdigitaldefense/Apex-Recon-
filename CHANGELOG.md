@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2E professional reporting and evidence
+
+### Added
+- Versioned JSON evidence records for HTTP and TLS assessments with UUID, scope, timestamps, duration, findings, fingerprints, provenance and limitations.
+- SHA-256 checksum over the canonical assessment record, explicitly documented as a checksum rather than a signature or immutable-storage guarantee.
+- Native PDF report generation through optional ReportLab support; JSON export remains standard-library-only.
+- Exclusive artifact creation and owner-only file permissions (0600) on supported POSIX systems.
+- CLI integration that writes JSON evidence and attempts native PDF output after HTTP/TLS HTML reports.
+- Offline tests for evidence schema, checksum, query-secret exclusion, exclusive creation and permissions.
+
+### Boundaries
+- No changes to network request behavior; no live targets contacted.
+- Phase 2E packages HTTP and TLS results separately; it does not merge separate runs or add comparison, signing, central storage, scheduling or background monitoring.
+- Native PDF requires the optional `requirements-pdf.txt` dependency.
+- Draft development only; no merge, release or client deployment.
+
+
 All notable changes to ApexRecon are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).

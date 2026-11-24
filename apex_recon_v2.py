@@ -12,6 +12,7 @@ import json
 import socket
 import subprocess
 import time
+import uuid
 import ipaddress
 import shutil
 import math
@@ -907,6 +908,24 @@ def smb_auditor_module():
 
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
+def save_evidence_exports(result, duration):
+    """Save Phase 2E JSON evidence and optional native PDF artifacts."""
+    from apex_evidence import export_artifacts
+
+    try:
+        artifacts = export_artifacts(result, duration)
+    except (OSError, ValueError) as exc:
+        print(f"{YELLOW}[!] Evidence export failed: {exc}{RESET}")
+        log(f"Evidence export failed: {type(exc).__name__}")
+        return {}
+    print(f"{GREEN}[+] Structured evidence saved: {BOLD}{artifacts['json_path']}{RESET}")
+    if artifacts["pdf_path"]:
+        print(f"{GREEN}[+] Native PDF report saved: {BOLD}{artifacts['pdf_path']}{RESET}")
+    elif artifacts["pdf_error"]:
+        print(f"{YELLOW}[i] {artifacts['pdf_error']}{RESET}")
+    return artifacts
+
+
 # ─────────────────────────────────────────────
 # MODULE 3: HTTP Security Assessment
 # ─────────────────────────────────────────────
@@ -947,6 +966,7 @@ def http_assessment_module():
         print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
         print(f"         {finding.get('evidence', '')}")
 
+    result["assessment_id"] = str(uuid.uuid4())
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
@@ -954,12 +974,16 @@ def http_assessment_module():
         log(f"HTTP assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
         return
 
+    artifacts = save_evidence_exports(result, duration)
+
     summary = {
         "target": result.get("target"),
         "path": result.get("path"),
         "duration_seconds": duration,
         "findings": len(result.get("findings", [])),
         "report": report_path,
+        "evidence_json": artifacts.get("json_path"),
+        "native_pdf": artifacts.get("pdf_path"),
     }
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
@@ -1005,12 +1029,15 @@ def tls_assessment_module():
         print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
         print(f"         {finding.get('evidence', '')}")
 
+    result["assessment_id"] = str(uuid.uuid4())
     try:
         report_path = generate_html_report(result, duration)
     except OSError as exc:
         print(f"{RED}[!] TLS assessment completed, but report could not be saved: {exc}{RESET}")
         log(f"TLS assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
         return
+
+    artifacts = save_evidence_exports(result, duration)
 
     summary = {
         "target": result.get("target"),
@@ -1019,6 +1046,8 @@ def tls_assessment_module():
         "duration_seconds": duration,
         "findings": len(result.get("findings", [])),
         "report": report_path,
+        "evidence_json": artifacts.get("json_path"),
+        "native_pdf": artifacts.get("pdf_path"),
     }
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")

@@ -291,6 +291,7 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
     cert = result.get("certificate") or {}
     metadata = [
         ("Target", f"{result.get('target', 'Unknown')}:443"),
+        ("Assessment ID", result.get("assessment_id", "Not assigned")),
         ("Assessment", result.get("status", "UNKNOWN")),
         ("Verified", result.get("verified", False)),
         ("Negotiated protocol", result.get("protocol") or "Not available"),
