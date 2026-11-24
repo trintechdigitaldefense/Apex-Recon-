@@ -125,3 +125,7 @@ Phase 2K hardens the unified engagement workflow so a failure in one selected mo
 
 ### Milestone 2L: unified engagement report quality (draft PR)
 Phase 2L makes operator feedback callbacks non-blocking and expands the unified PDF to show engagement and per-module scope, timestamps, limitations, status counts, and finding evidence metadata. The PDF remains a presentation of supplied assessment outputs and does not independently verify scan completeness or accuracy. See [Phase 2L engagement report quality](docs/PHASE2L_ENGAGEMENT_REPORT_QUALITY.md).
+
+
+### Milestone 2M: assessment evidence integrity and report verification (draft PR)
+Phase 2M verifies engagement structure and internal count consistency in addition to the canonical SHA-256 checksum. It rejects duplicate finding IDs, malformed or incomplete module records, mismatched summaries and findings attributed to NOT_RUN modules. PDF metadata carries the engagement UUID and JSON checksum to help correlate the two artifacts; it does not sign or checksum the PDF. See [Phase 2M evidence integrity and report verification](docs/PHASE2M_EVIDENCE_INTEGRITY_VERIFICATION.md).
