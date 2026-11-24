@@ -21,7 +21,7 @@ The diagnostic now checks:
 - Actual ability to create and remove a temporary file in the project directory, which checks whether reports and other local artifacts can be written there.
 - External tools and optional ReportLab/cryptography packages, with platform-appropriate installation guidance.
 
-The write check is local and temporary. It does not overwrite an existing file. If it fails, inspect directory ownership and permissions before changing them. Do not solve a permissions problem by running ApexRecon as root unless that is an intentional, understood operational choice.
+The write check targets the current working directory used for relative report/evidence output. It is local and temporary and does not overwrite an existing file. If it fails, inspect directory ownership and permissions before changing them. Do not solve a permissions problem by running ApexRecon as root unless that is an intentional, understood operational choice.
 
 ## Recommended isolated setup
 
@@ -98,7 +98,7 @@ Unit tests use temporary directories and mocked failures. They do not install pa
 
 ## Boundaries and limitations
 
-- The diagnostic checks local files and write access only; it does not prove that a filesystem will remain writable during a later assessment.
+- The diagnostic checks required source files and current-working-directory write access only; it does not prove that a filesystem will remain writable during a later assessment.
 - It does not verify every optional dependency's runtime behavior or every supported Android/Linux distribution.
 - It does not repair permissions, install packages, alter Python environments, or remove existing files.
 - No scan requests, methods, paths, ports, probes, redirects, target expansion, crawling, fuzzing, authentication, or exploitation are added or changed.
