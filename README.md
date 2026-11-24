@@ -117,3 +117,7 @@ Phase 2I adds a standalone engagement packaging layer that combines supplied OSI
 
 ### Milestone 2J: unified CLI engagement integration (draft PR)
 Phase 2J connects the Phase 2I report builder to main-menu option 5. Operators can select all or a subset of OSINT, SMB, HTTP and TLS modules. Each selected module retains its existing target validation and written-authorization prompt. The workflow records unselected and selected-but-not-run modules as NOT_RUN, preserves module findings and limitations, and exports one combined JSON report plus an optional PDF. Individual module menu options remain available. See [Phase 2J unified CLI engagement integration](docs/PHASE2J_UNIFIED_CLI_ENGAGEMENT.md).
+
+
+### Milestone 2K: unified engagement reliability (draft PR)
+Phase 2K hardens the unified engagement workflow so a failure in one selected module does not prevent later selected modules from running or discard valid results from other modules. Module outputs are validated independently for status, scope, findings, duration, limitations and timestamps. Invalid outputs are represented as FAILED with an explicit limitation; unselected and selected-but-not-run modules remain distinct. The work does not change scan commands, authorization gates, target scope or network behavior. See [Phase 2K engagement reliability](docs/PHASE2K_ENGAGEMENT_RELIABILITY.md).
