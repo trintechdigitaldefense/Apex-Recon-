@@ -1189,10 +1189,11 @@ def tls_assessment_module(*, engagement_mode=False):
 # UNIFIED ENGAGEMENT WORKFLOW
 # ─────────────────────────────────────────────
 def unified_engagement_module():
-    """Run selected existing modules and export one consolidated engagement."""
+    """Run selected existing modules with a durable, non-resuming execution journal."""
     from apex_engagement import build_engagement_record, export_engagement_json, export_engagement_pdf
     from apex_engagement_cli import (MODULE_NAMES, parse_module_selection,
                                      run_selected_modules, assemble_module_results)
+    from apex_execution import ExecutionJournal, ExecutionJournalError
 
     print_banner()
     print(f"{RED}[*] Unified Engagement — operator-selected modules{RESET}\n")
@@ -1216,40 +1217,77 @@ def unified_engagement_module():
         MODULE_NAMES[3]: tls_assessment_module,
     }
     capabilities = dependency_status()["capabilities"]
+    execution_id = str(uuid.uuid4())
+    journal_path = f"apex_execution_{execution_id}.jsonl"
+    try:
+        journal = ExecutionJournal.create(
+            journal_path, execution_id,
+            [name for name in MODULE_NAMES if name in selected],
+        )
+    except ExecutionJournalError as exc:
+        print(f"{RED}[!] Cannot create the execution journal: {exc}. No modules were run.{RESET}")
+        log("Unified engagement aborted: execution journal could not be created")
+        return
+    print(f"{GREY}[i] Execution journal: {journal_path}{RESET}")
 
     def run_capability_aware(name, runner):
         if name == MODULE_NAMES[1] and not capabilities["smb"]:
-            reason = "Nmap is missing; SMB checks were not executed."
+            reason = "Nmap is missing; SMB assessment was not executed."
             print(f"{YELLOW}[!] {reason}{RESET}")
-            return _engagement_module_result(name, "UNAVAILABLE", {}, [], 0, [reason])
+            return _engagement_module_result(name, "FAILED", {}, [], 0, [reason])
         return runner(engagement_mode=True)
+
+    def checkpoint_module_start(name):
+        journal.start_module(name)
+
     def report_module_start(name):
         print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
 
+    def checkpoint_module_finish(name, outcome):
+        status = outcome.get("status") if isinstance(outcome, dict) else "NOT_RUN"
+        if status not in {"COMPLETED", "PARTIAL", "FAILED", "NOT_RUN"}:
+            status = "FAILED"
+        journal.finish_module(name, status, outcome if isinstance(outcome, dict) else None)
+
     def report_module_error(name, exc):
-        print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
-        log(f"Unified engagement module failure: {name}: {type(exc).__name__}")
+        print(f"{YELLOW}[!] {name} stopped or could not be checkpointed: {type(exc).__name__}. Continuing with remaining selected modules where safe.{RESET}")
+        log(f"Unified engagement module/checkpoint failure: {name}: {type(exc).__name__}")
 
     outcomes = run_selected_modules(
         selected,
         {name: (lambda name=name, runner=runner: run_capability_aware(name, runner))
          for name, runner in runners.items()},
         on_start=report_module_start, on_error=report_module_error,
+        before_run=checkpoint_module_start, on_finish=checkpoint_module_finish,
     )
     try:
         module_results = assemble_module_results(selected, outcomes)
-        record = build_engagement_record({"engagement_name": engagement_name}, module_results)
+        record = build_engagement_record(
+            {"engagement_name": engagement_name}, module_results,
+            engagement_id=execution_id,
+        )
         json_path = export_engagement_json(record)
     except (OSError, ValueError) as exc:
+        try:
+            journal.fail_finalization()
+        except ExecutionJournalError:
+            pass
         print(f"{RED}[!] Unified engagement export failed: {exc}{RESET}")
         log(f"Unified engagement export failed: {type(exc).__name__}")
         return
+
+    try:
+        journal.finalize()
+    except ExecutionJournalError as exc:
+        print(f"{YELLOW}[!] Engagement JSON was saved, but the execution journal is not finalized: {exc}{RESET}")
+        log("Unified engagement journal finalization failed")
     pdf_path = None
     try:
         pdf_path = export_engagement_pdf(record)
     except Exception as exc:
         print(f"{YELLOW}[i] JSON report saved; PDF export unavailable: {type(exc).__name__}: {exc}{RESET}")
     print(f"\n{GREEN}[+] Unified JSON report saved: {BOLD}{json_path}{RESET}")
+    print(f"{GREY}[i] Execution journal: {journal_path} (inspect with apex_execution.py helpers; no automatic resume){RESET}")
     if pdf_path:
         print(f"{GREEN}[+] Unified PDF report saved: {BOLD}{pdf_path}{RESET}")
     print(f"{WHITE}Engagement: {record['engagement']['status']} | Findings: {record['summary']['total_findings']}{RESET}")

@@ -110,8 +110,15 @@ def _validate_outcome(name, outcome):
     return result
 
 
-def run_selected_modules(selected, runners, on_start=None, on_error=None):
-    """Run selected module callables in stable order, isolating each exception."""
+def run_selected_modules(selected, runners, on_start=None, on_error=None,
+                         before_run=None, on_finish=None):
+    """Run selected callables with optional durable before/after checkpoints.
+
+    on_start remains observational. before_run is a strict gate: if it fails,
+    the module is not invoked. on_finish runs after a callable returns or is
+    converted to a failure result; if it fails, the result is downgraded to
+    FAILED so an unrecorded completion cannot look successful.
+    """
     if isinstance(selected, (str, bytes)):
         raise ValueError("selected must be a collection of module names")
     selected = set(selected)
@@ -123,6 +130,19 @@ def run_selected_modules(selected, runners, on_start=None, on_error=None):
     for name in MODULE_NAMES:
         if name not in selected:
             continue
+        if callable(before_run):
+            try:
+                before_run(name)
+            except Exception as exc:
+                if callable(on_error):
+                    try:
+                        on_error(name, exc)
+                    except Exception:
+                        pass
+                outcomes[name] = _failure_entry(
+                    name, f"Module was not started because its execution checkpoint failed ({type(exc).__name__})."
+                )
+                continue
         # Operator callbacks are observational only. A broken console/logging
         # callback must never prevent an authorized module runner from executing.
         if callable(on_start):
@@ -144,6 +164,18 @@ def run_selected_modules(selected, runners, on_start=None, on_error=None):
             outcomes[name] = _failure_entry(
                 name, f"Module stopped unexpectedly ({type(exc).__name__}); inspect the operator log."
             )
+        if callable(on_finish):
+            try:
+                on_finish(name, outcomes[name])
+            except Exception as exc:
+                if callable(on_error):
+                    try:
+                        on_error(name, exc)
+                    except Exception:
+                        pass
+                outcomes[name] = _failure_entry(
+                    name, f"Module result could not be checkpointed ({type(exc).__name__}); treat execution as incomplete."
+                )
     return outcomes
 
 
