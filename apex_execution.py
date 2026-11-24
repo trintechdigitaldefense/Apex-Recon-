@@ -400,6 +400,12 @@ class ExecutionJournal:
         return self._append("MODULE_STARTED", module=module)
 
     def finish_module(self, module: str, status: str, outcome: dict | None = None) -> dict:
+        current = inspect_execution_journal(self.path)
+        if (not current["valid"] or current["execution_id"] != self.execution_id
+                or module not in current["module_states"]
+                or current["module_states"][module] != "STARTED"
+                or status not in TERMINAL_STATUSES):
+            raise ExecutionJournalError("module cannot enter the requested terminal state")
         artifact_file = None
         artifact_sha256 = None
         if outcome is not None:
