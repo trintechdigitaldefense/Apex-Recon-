@@ -133,6 +133,91 @@ class HeaderAssessmentTests(unittest.TestCase):
         self.assertEqual(statuses["MIME_SNIFFING"], "PRESENT")
         self.assertEqual(statuses["CLICKJACKING_PROTECTION"], "PRESENT")
 
+    def test_hsts_requires_a_valid_positive_max_age(self):
+        valid = web._inspect_headers(self.headers({"Strict-Transport-Security": "max-age=31536000; includeSubDomains"}), "https")
+        disabled = web._inspect_headers(self.headers({"Strict-Transport-Security": "max-age=0"}), "https")
+        invalid = web._inspect_headers(self.headers({"Strict-Transport-Security": "max-age=soon"}), "https")
+        self.assertEqual(next(f for f in valid if f["check"] == "HSTS")["status"], "PRESENT")
+        self.assertEqual(next(f for f in disabled if f["check"] == "HSTS")["status"], "DISABLED")
+        self.assertEqual(next(f for f in invalid if f["check"] == "HSTS")["status"], "INVALID")
+
+    def test_duplicate_hsts_values_are_ambiguous(self):
+        headers = Message()
+        headers.add_header("Strict-Transport-Security", "max-age=31536000")
+        headers.add_header("Strict-Transport-Security", "max-age=0")
+        finding = next(f for f in web._inspect_headers(headers, "https") if f["check"] == "HSTS")
+        self.assertEqual(finding["status"], "AMBIGUOUS")
+
+    def test_mime_sniffing_header_requires_nosniff(self):
+        findings = web._inspect_headers(self.headers({"X-Content-Type-Options": "enabled"}), "https")
+        finding = next(f for f in findings if f["check"] == "MIME_SNIFFING")
+        self.assertEqual(finding["status"], "INVALID")
+
+    def test_duplicate_mime_header_values_are_ambiguous(self):
+        headers = Message()
+        headers.add_header("X-Content-Type-Options", "nosniff")
+        headers.add_header("X-Content-Type-Options", "invalid")
+        finding = next(f for f in web._inspect_headers(headers, "https") if f["check"] == "MIME_SNIFFING")
+        self.assertEqual(finding["status"], "AMBIGUOUS")
+
+    def test_referrer_policy_uses_last_recognized_token(self):
+        findings = web._inspect_headers(
+            self.headers({"Referrer-Policy": "unknown-policy, no-referrer, strict-origin"}),
+            "https",
+        )
+        finding = next(f for f in findings if f["check"] == "REFERRER_POLICY")
+        self.assertEqual(finding["status"], "PRESENT")
+        self.assertIn("strict-origin", finding["evidence"])
+
+    def test_invalid_referrer_policy_is_not_marked_present(self):
+        findings = web._inspect_headers(self.headers({"Referrer-Policy": "unsafe-referrer"}), "https")
+        finding = next(f for f in findings if f["check"] == "REFERRER_POLICY")
+        self.assertEqual(finding["status"], "INVALID")
+
+    def test_invalid_x_frame_options_is_not_counted_as_protection(self):
+        findings = web._inspect_headers(self.headers({"X-Frame-Options": "ALLOWALL"}), "https")
+        finding = next(f for f in findings if f["check"] == "CLICKJACKING_PROTECTION")
+        self.assertEqual(finding["status"], "INVALID")
+
+    def test_permissions_policy_presence_is_not_full_validation(self):
+        findings = web._inspect_headers(self.headers({"Permissions-Policy": "camera=()"}), "https")
+        finding = next(f for f in findings if f["check"] == "PERMISSIONS_POLICY")
+        self.assertEqual(finding["status"], "PRESENT_UNVALIDATED")
+
+    def test_report_only_csp_is_not_counted_as_enforced_csp(self):
+        headers = self.headers({"Content-Security-Policy-Report-Only": "default-src 'none'"})
+        findings = web._inspect_headers(headers, "https")
+        csp = next(f for f in findings if f["check"] == "CSP")
+        report_only = next(f for f in findings if f["check"] == "CSP_REPORT_ONLY")
+        self.assertEqual(csp["status"], "MISSING")
+        self.assertEqual(report_only["status"], "REPORT_ONLY_NOT_ENFORCED")
+
+    def test_multiple_enforced_csp_values_are_observed(self):
+        headers = Message()
+        headers.add_header("Content-Security-Policy", "default-src 'self'")
+        headers.add_header("Content-Security-Policy", "frame-ancestors 'none'")
+        findings = web._inspect_headers(headers, "https")
+        csp = next(f for f in findings if f["check"] == "CSP")
+        clickjacking = next(f for f in findings if f["check"] == "CLICKJACKING_PROTECTION")
+        self.assertIn("2 enforced", csp["evidence"])
+        self.assertEqual(clickjacking["status"], "PRESENT")
+
+    def test_samesite_attribute_name_must_match_exactly(self):
+        findings = web._inspect_cookies(
+            self.headers(cookies=["sid=value; Secure; HttpOnly; SameSiteBogus=Lax"]),
+            True,
+        )
+        self.assertEqual(findings[0]["status"], "MISSING_ATTRIBUTES")
+        self.assertIn("SameSite", findings[0]["evidence"])
+
+    def test_samesite_none_requires_secure(self):
+        findings = web._inspect_cookies(
+            self.headers(cookies=["sid=value; HttpOnly; SameSite=None"]),
+            False,
+        )
+        self.assertEqual(findings[0]["status"], "INVALID_ATTRIBUTES")
+        self.assertIn("SameSite=None without Secure", findings[0]["evidence"])
+
     def test_csp_policy_quality_reports_unsafe_sources_and_missing_restrictions(self):
         headers = self.headers({
             "Content-Security-Policy": "default-src *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'",
@@ -284,6 +369,19 @@ class AssessmentFlowTests(unittest.TestCase):
         mocked_fetch.side_effect = [self.response(200, "http"), self.response(200, "https")]
         web.assess_url("example.com")
         self.assertEqual(mocked_fetch.call_count, 2)
+
+    @patch.object(web, "_fetch")
+    def test_http_response_status_classes_are_descriptive(self, mocked_fetch):
+        mocked_fetch.side_effect = [
+            self.response(404, "http"),
+            self.response(503, "https"),
+        ]
+        result = web.assess_url("example.com")
+        self.assertEqual(result["http_status_class"], "CLIENT_ERROR")
+        self.assertEqual(result["https_status_class"], "SERVER_ERROR")
+        endpoint = next(f for f in result["findings"] if f["check"] == "HTTPS_ENDPOINT")
+        self.assertIn("SERVER_ERROR", endpoint["evidence"])
+        self.assertEqual(endpoint["severity"], "INFO")
 
     @patch.object(web, "_fetch")
     def test_result_has_explicit_scope_limitations(self, mocked_fetch):

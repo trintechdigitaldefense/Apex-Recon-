@@ -31,7 +31,7 @@ A separate standard-library engine in `apex_web.py` performs up to two read-only
 - Secure, HttpOnly and SameSite attributes on observed cookies
 - Server and X-Powered-By disclosure
 
-Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Phase 2D extends menu option 3 with passive CMS and frontend technology fingerprints from response headers and at most 16 KiB of HTML across the existing two-request limit. Fingerprints include evidence markers and confidence; versions are reported only from an explicit numeric CMS generator tag. No extra paths or requests are introduced. The modules do not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. The HTTP, TLS and fingerprinting changes remain stacked development drafts until reviewed and validated.
+Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Phase 2D extends menu option 3 with passive CMS and frontend technology fingerprints from response headers and at most 16 KiB of HTML across the existing two-request limit. Fingerprints include evidence markers and confidence; versions are reported only from an explicit numeric CMS generator tag. No extra paths or requests are introduced. The modules do not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. The HTTP, TLS and fingerprinting changes are implemented in the stacked development branches. They remain outside `main` and are not a production or client-ready release.
 
 ### Milestone 2E: professional reporting and evidence (draft PR)
 HTTP and TLS assessment runs now produce a versioned JSON evidence record with a unique assessment ID, scope, timestamps, duration, findings, fingerprint confidence, provenance, limitations and a SHA-256 assessment checksum. When optional ReportLab support is installed, ApexRecon also creates a native PDF report. Artifacts use exclusive file creation and owner-only permissions on POSIX systems. The checksum is not a digital signature or immutable storage guarantee. See [Phase 2E reporting and evidence](docs/PHASE2E_PROFESSIONAL_REPORTING_EVIDENCE.md).
@@ -91,7 +91,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- HTTP, TLS, fingerprinting, Phase 2E reporting and Phase 2F evidence reliability work remains in stacked draft PRs pending their respective review and validation.
+- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T is now improving HTTP header-value accuracy and response classification.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
@@ -104,7 +104,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 - [R1 source review and known limitations](docs/R1_SOURCE_REVIEW.md)
 - [Phase 2 HTTP assessment scope](docs/PHASE2_HTTP_ASSESSMENT.md)
 
-No merge, production release, or client deployment is authorized by this development branch.
+No merge into `main`, production release, or client deployment is authorized by this development branch.
 
 - [Phase 2C verified TLS assessment scope](docs/PHASE2C_TLS_ASSESSMENT.md)
 

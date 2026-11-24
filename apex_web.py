@@ -256,55 +256,205 @@ def _inspect_csp_policy(csp: str) -> list[dict]:
         ))
     return findings
 
+def _status_class(status: int) -> str:
+    """Classify an HTTP status code without treating the class as a vulnerability verdict."""
+    try:
+        code = int(status)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if 100 <= code <= 199:
+        return "INFORMATIONAL"
+    if 200 <= code <= 299:
+        return "SUCCESS"
+    if 300 <= code <= 399:
+        return "REDIRECTION"
+    if 400 <= code <= 499:
+        return "CLIENT_ERROR"
+    if 500 <= code <= 599:
+        return "SERVER_ERROR"
+    return "UNKNOWN"
+
+
+def _inspect_hsts(headers: Any) -> dict:
+    """Validate the HSTS max-age directive without assuming policy intent."""
+    values = _header_values(headers, "Strict-Transport-Security")
+    if not values:
+        return _finding(
+            "HSTS", "MEDIUM", "MISSING",
+            "Strict-Transport-Security response header was not present.",
+            "Configure HSTS on HTTPS responses after confirming all required subdomains support HTTPS.",
+        )
+    if len(values) != 1:
+        return _finding(
+            "HSTS", "MEDIUM", "AMBIGUOUS",
+            f"{len(values)} Strict-Transport-Security header values were observed.",
+            "Send one unambiguous HSTS policy and review it against the organisation's deployment needs.",
+        )
+
+    directives = {}
+    duplicates = []
+    for part in values[0].split(";"):
+        token = part.strip()
+        if not token:
+            continue
+        name, separator, raw_value = token.partition("=")
+        name = name.strip().lower()
+        if not name:
+            continue
+        if name in directives:
+            duplicates.append(name)
+            continue
+        directives[name] = raw_value.strip().strip('"') if separator else None
+
+    max_age = directives.get("max-age")
+    if duplicates:
+        return _finding(
+            "HSTS", "MEDIUM", "AMBIGUOUS",
+            "Duplicate HSTS directive(s): " + ", ".join(sorted(set(duplicates))) + ".",
+            "Remove duplicate HSTS directives and retain one explicit max-age value.",
+        )
+    if max_age is None or not max_age.isascii() or not max_age.isdigit() or len(max_age) > 20:
+        return _finding(
+            "HSTS", "MEDIUM", "INVALID",
+            "HSTS did not contain one valid non-negative integer max-age directive.",
+            "Set a valid decimal max-age value; confirm the intended duration before enabling HSTS.",
+        )
+    if int(max_age) == 0:
+        return _finding(
+            "HSTS", "MEDIUM", "DISABLED",
+            "HSTS max-age is 0, which instructs browsers to clear the stored HSTS policy.",
+            "Use a positive max-age only after confirming HTTPS is reliable across the affected host scope.",
+        )
+    return _finding(
+        "HSTS", "INFO", "PRESENT",
+        f"HSTS max-age is {max_age} seconds; includeSubDomains={'present' if 'includesubdomains' in directives else 'absent'}; preload={'present' if 'preload' in directives else 'absent'}.",
+        "Review max-age and includeSubDomains/preload policy against the organisation's deployment needs.",
+    )
+
+
 def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
     findings = []
     if scheme == "https":
-        hsts = _header(headers, "Strict-Transport-Security")
-        if hsts:
-            findings.append(_finding("HSTS", "INFO", "PRESENT", hsts[:300],
-                                     "Review max-age and includeSubDomains/preload policy against the organisation's deployment needs."))
-        else:
-            findings.append(_finding("HSTS", "MEDIUM", "MISSING", "Strict-Transport-Security response header was not present.",
-                                     "Configure HSTS on HTTPS responses after confirming all required subdomains support HTTPS."))
+        findings.append(_inspect_hsts(headers))
     else:
-        findings.append(_finding("HSTS", "INFO", "NOT_APPLICABLE", "HSTS is evaluated on HTTPS responses.",
+        findings.append(_finding("HSTS", "INFO", "NOT_APPLICABLE",
+                                 "HSTS is evaluated on HTTPS responses.",
                                  "Serve HSTS from the HTTPS origin."))
 
-    checks = (
-        ("Content-Security-Policy", "CSP", "MEDIUM",
-         "Define a restrictive Content-Security-Policy appropriate to the application; avoid unsafe-inline/unsafe-eval where possible."),
-        ("X-Content-Type-Options", "MIME_SNIFFING", "MEDIUM",
-         "Set X-Content-Type-Options: nosniff."),
-        ("Referrer-Policy", "REFERRER_POLICY", "LOW",
-         "Set a deliberate Referrer-Policy, commonly strict-origin-when-cross-origin or stricter."),
-        ("Permissions-Policy", "PERMISSIONS_POLICY", "LOW",
-         "Set a Permissions-Policy that disables browser capabilities the application does not need."),
-    )
-    for header_name, check_name, severity, recommendation in checks:
-        value = _header(headers, header_name)
-        if value:
-            findings.append(_finding(check_name, "INFO", "PRESENT", value[:300], recommendation))
-        else:
-            findings.append(_finding(check_name, severity, "MISSING",
-                                     f"{header_name} response header was not present.", recommendation))
-
-    csp = _header(headers, "Content-Security-Policy") or ""
-    if csp:
-        findings.extend(_inspect_csp_policy(csp))
-    xfo = _header(headers, "X-Frame-Options")
-    if "frame-ancestors" in csp.lower():
-        findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT",
-                                 "Content-Security-Policy includes frame-ancestors.",
-                                 "Keep frame-ancestors aligned with approved embedding requirements."))
-    elif xfo:
-        findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT", xfo[:200],
-                                 "Prefer CSP frame-ancestors for modern browser policy; retain X-Frame-Options where legacy support is required."))
+    # CSP is handled separately because a response may carry multiple enforced
+    # policies. A report-only policy is reported as advisory, never as enforced.
+    csp_values = _header_values(headers, "Content-Security-Policy")
+    if csp_values:
+        findings.append(_finding(
+            "CSP", "INFO", "PRESENT",
+            f"{len(csp_values)} enforced Content-Security-Policy value(s) observed.",
+            "Review each enforced policy in the context of the application and supported browsers.",
+        ))
+        seen = set()
+        for policy in csp_values:
+            for finding in _inspect_csp_policy(policy):
+                if finding["finding_id"] not in seen:
+                    seen.add(finding["finding_id"])
+                    findings.append(finding)
     else:
-        findings.append(_finding("CLICKJACKING_PROTECTION", "MEDIUM", "MISSING",
-                                 "Neither CSP frame-ancestors nor X-Frame-Options was present.",
-                                 "Set CSP frame-ancestors 'none' or an explicit trusted-origin list; consider X-Frame-Options for legacy clients."))
-    return findings
+        findings.append(_finding(
+            "CSP", "MEDIUM", "MISSING",
+            "Content-Security-Policy response header was not present.",
+            "Define a restrictive Content-Security-Policy appropriate to the application; avoid unsafe-inline/unsafe-eval where possible.",
+        ))
 
+    report_only = _header_values(headers, "Content-Security-Policy-Report-Only")
+    if report_only:
+        findings.append(_finding(
+            "CSP_REPORT_ONLY", "INFO", "REPORT_ONLY_NOT_ENFORCED",
+            f"{len(report_only)} Content-Security-Policy-Report-Only value(s) observed; report-only policies do not enforce restrictions.",
+            "Use report-only mode to test policy changes, then deploy an enforced Content-Security-Policy when ready.",
+        ))
+
+    xcto_values = _header_values(headers, "X-Content-Type-Options")
+    if not xcto_values:
+        findings.append(_finding("MIME_SNIFFING", "MEDIUM", "MISSING",
+                                 "X-Content-Type-Options response header was not present.",
+                                 "Set X-Content-Type-Options: nosniff."))
+    elif len(xcto_values) > 1:
+        findings.append(_finding("MIME_SNIFFING", "MEDIUM", "AMBIGUOUS",
+                                 f"{len(xcto_values)} X-Content-Type-Options values were observed.",
+                                 "Send one unambiguous X-Content-Type-Options: nosniff header."))
+    elif xcto_values[0].strip().lower() == "nosniff":
+        findings.append(_finding("MIME_SNIFFING", "INFO", "PRESENT", xcto_values[0][:200],
+                                 "Keep X-Content-Type-Options set to nosniff."))
+    else:
+        findings.append(_finding("MIME_SNIFFING", "MEDIUM", "INVALID",
+                                 f"Unrecognized X-Content-Type-Options value: {xcto_values[0][:200]!r}.",
+                                 "Use the supported value X-Content-Type-Options: nosniff."))
+
+    referrer_values = _header_values(headers, "Referrer-Policy")
+    valid_referrer = {
+        "no-referrer", "no-referrer-when-downgrade", "origin",
+        "origin-when-cross-origin", "same-origin", "strict-origin",
+        "strict-origin-when-cross-origin", "unsafe-url",
+    }
+    tokens = [token.strip().lower() for value in referrer_values for token in value.split(",")]
+    recognized = [token for token in tokens if token in valid_referrer]
+    if not referrer_values:
+        findings.append(_finding("REFERRER_POLICY", "LOW", "MISSING",
+                                 "Referrer-Policy response header was not present.",
+                                 "Set a deliberate Referrer-Policy, commonly strict-origin-when-cross-origin or stricter."))
+    elif recognized:
+        effective = recognized[-1]
+        findings.append(_finding("REFERRER_POLICY", "INFO", "PRESENT",
+                                 f"Last recognized Referrer-Policy token: {effective}.",
+                                 "Review the effective policy against application privacy and navigation requirements."))
+    else:
+        findings.append(_finding("REFERRER_POLICY", "LOW", "INVALID",
+                                 "No recognized Referrer-Policy token was present.",
+                                 "Use a recognized Referrer-Policy value such as strict-origin-when-cross-origin."))
+
+    permissions = _header_values(headers, "Permissions-Policy")
+    if permissions:
+        findings.append(_finding(
+            "PERMISSIONS_POLICY", "INFO", "PRESENT_UNVALIDATED",
+            "Permissions-Policy header is present; its full directive grammar and browser support are not evaluated.",
+            "Review directive syntax, allowlists and browser support against the application's feature requirements.",
+        ))
+    else:
+        findings.append(_finding(
+            "PERMISSIONS_POLICY", "LOW", "MISSING",
+            "Permissions-Policy response header was not present.",
+            "Set a Permissions-Policy that disables browser capabilities the application does not need.",
+        ))
+
+    xfo_values = _header_values(headers, "X-Frame-Options")
+    has_frame_ancestors = any(
+        any((part.strip().split()[:1] and part.strip().split()[0].lower() == "frame-ancestors") for part in policy.split(";"))
+        for policy in csp_values
+    )
+    if has_frame_ancestors:
+        findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT",
+                                 "An enforced Content-Security-Policy contains frame-ancestors.",
+                                 "Keep frame-ancestors aligned with approved embedding requirements."))
+    elif not xfo_values:
+        findings.append(_finding("CLICKJACKING_PROTECTION", "MEDIUM", "MISSING",
+                                 "Neither enforced CSP frame-ancestors nor X-Frame-Options was present.",
+                                 "Set CSP frame-ancestors 'none' or an explicit trusted-origin list; consider X-Frame-Options for legacy clients."))
+    elif len(xfo_values) != 1:
+        findings.append(_finding("CLICKJACKING_PROTECTION", "MEDIUM", "AMBIGUOUS",
+                                 f"{len(xfo_values)} X-Frame-Options values were observed.",
+                                 "Send one unambiguous X-Frame-Options value or use an enforced CSP frame-ancestors directive."))
+    else:
+        xfo = xfo_values[0].strip().upper()
+        if xfo in {"DENY", "SAMEORIGIN"}:
+            findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT", xfo,
+                                     "Prefer CSP frame-ancestors for modern browser policy; retain X-Frame-Options where legacy support is required."))
+        elif xfo == "ALLOW-FROM" or xfo.startswith("ALLOW-FROM "):
+            findings.append(_finding("CLICKJACKING_PROTECTION", "LOW", "LEGACY_UNSUPPORTED",
+                                     xfo[:200],
+                                     "Replace obsolete X-Frame-Options ALLOW-FROM with an enforced CSP frame-ancestors policy."))
+        else:
+            findings.append(_finding("CLICKJACKING_PROTECTION", "MEDIUM", "INVALID",
+                                     f"Unrecognized X-Frame-Options value: {xfo[:200]!r}.",
+                                     "Use DENY or SAMEORIGIN, or define an enforced CSP frame-ancestors directive."))
+    return findings
 
 def _inspect_cookies(headers: Any, secure_transport: bool) -> list[dict]:
     findings = []
@@ -316,24 +466,47 @@ def _inspect_cookies(headers: Any, secure_transport: bool) -> list[dict]:
     for index, cookie in enumerate(cookies, 1):
         parts = [part.strip() for part in cookie.split(";")]
         name = parts[0].split("=", 1)[0][:80] if parts else f"cookie-{index}"
-        attributes = {part.split("=", 1)[0].strip().lower() for part in parts[1:] if part}
+        attributes = []
+        for part in parts[1:]:
+            if not part:
+                continue
+            key, separator, raw_value = part.partition("=")
+            attributes.append((key.strip().lower(), raw_value.strip().strip('"') if separator else None))
+
+        names = {key for key, _ in attributes}
         missing = []
-        if secure_transport and "secure" not in attributes:
+        invalid = []
+        if secure_transport and "secure" not in names:
             missing.append("Secure")
-        if "httponly" not in attributes:
+        if "httponly" not in names:
             missing.append("HttpOnly")
-        if not any(attr.startswith("samesite") for attr in attributes):
+        if any(value is not None for key, value in attributes if key in {"secure", "httponly"}):
+            invalid.append("Secure/HttpOnly flag syntax")
+
+        same_site = [value for key, value in attributes if key == "samesite"]
+        if not same_site:
             missing.append("SameSite")
-        if missing:
+        elif len(same_site) != 1 or same_site[0] is None or same_site[0].lower() not in {"strict", "lax", "none"}:
+            invalid.append("SameSite")
+        elif same_site[0].lower() == "none" and "secure" not in names:
+            invalid.append("SameSite=None without Secure")
+
+        if invalid:
+            findings.append(_finding(
+                "COOKIE_FLAGS", "MEDIUM", "INVALID_ATTRIBUTES",
+                f"Cookie {name!r} has invalid or conflicting attribute(s): {', '.join(invalid)}."
+                + (f" Also missing: {', '.join(missing)}." if missing else ""),
+                "Use one valid SameSite value (Strict, Lax or None); SameSite=None requires Secure. Set HttpOnly where JavaScript access is unnecessary.",
+            ))
+        elif missing:
             findings.append(_finding("COOKIE_FLAGS", "MEDIUM", "MISSING_ATTRIBUTES",
                                      f"Cookie {name!r} is missing: {', '.join(missing)}.",
                                      "Set Secure on HTTPS cookies, HttpOnly where JavaScript access is unnecessary, and an intentional SameSite policy."))
         else:
             findings.append(_finding("COOKIE_FLAGS", "INFO", "PRESENT",
-                                     f"Cookie {name!r} includes Secure/HttpOnly/SameSite attributes.",
+                                     f"Cookie {name!r} includes Secure/HttpOnly and one recognized SameSite value.",
                                      "Confirm cookie scope, lifetime, and SameSite mode match the application's authentication design."))
     return findings
-
 
 def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
     """Assess HTTP->HTTPS behavior and common response headers for one URL.
@@ -390,9 +563,10 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
                                  "Confirm whether HTTP is intentionally disabled; verify HTTPS is available independently."))
 
     if isinstance(https_result, FetchResult):
+        status_class = _status_class(https_result.status)
         findings.append(_finding("HTTPS_ENDPOINT", "INFO", "RESPONDED",
-                                 f"HTTPS endpoint returned HTTP status {https_result.status}.",
-                                 "Review the application response and its authentication/access controls."))
+                                 f"HTTPS endpoint returned HTTP status {https_result.status} ({status_class}).",
+                                 "Review the application response and its authentication/access controls. HTTP status classes are descriptive observations, not vulnerability verdicts."))
         findings.extend(_inspect_headers(https_result.headers, "https"))
         findings.extend(_inspect_cookies(https_result.headers, True))
         server = _header(https_result.headers, "Server")
@@ -418,6 +592,8 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         "http_final_scheme": http_final_scheme,
         "http_redirected_to_https": http_redirected_to_https,
         "https_status": https_result.status if isinstance(https_result, FetchResult) else None,
+        "http_status_class": _status_class(http_result.status) if isinstance(http_result, FetchResult) and not http_redirected_to_https else None,
+        "https_status_class": _status_class(https_result.status) if isinstance(https_result, FetchResult) else None,
         "http_final_url": _safe_url(http_result.final_url) if isinstance(http_result, FetchResult) else None,
         "https_final_url": _safe_url(https_result.final_url) if isinstance(https_result, FetchResult) else None,
         "findings": findings,
