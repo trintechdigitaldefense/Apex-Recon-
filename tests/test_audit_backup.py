@@ -89,5 +89,27 @@ class AuditBackupTests(unittest.TestCase):
         with self.assertRaises(AuditBackupError):
             verify_audit_backup(self.backup, self.checkpoint)
 
+    def test_empty_audit_trail_backup_and_restore(self):
+        self.audit.unlink()
+        create_audit_backup(self.audit, self.backup, self.checkpoint)
+        verified = verify_audit_backup(self.backup, self.checkpoint)
+        self.assertTrue(verified["valid"])
+        self.assertEqual(verified["entries"], 0)
+        target = Path(self.temp.name) / "empty-restored.jsonl"
+        restored = restore_audit_backup(self.backup, self.checkpoint, target)
+        self.assertEqual(target.read_bytes(), b"")
+        self.assertEqual(restored["entries"], 0)
+
+    def test_backup_and_checkpoint_paths_must_be_distinct(self):
+        with self.assertRaises(AuditBackupError):
+            create_audit_backup(self.audit, self.backup, self.backup)
+        self.assertFalse(self.backup.exists())
+
+    def test_non_finite_json_metadata_fails_with_backup_error(self):
+        create_audit_backup(self.audit, self.backup, self.checkpoint)
+        self.backup.write_text('{"invalid":NaN}\\n', encoding="utf-8")
+        with self.assertRaises(AuditBackupError):
+            verify_audit_backup(self.backup, self.checkpoint)
+
 if __name__ == "__main__":
     unittest.main()
