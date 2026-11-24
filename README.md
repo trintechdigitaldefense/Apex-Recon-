@@ -129,3 +129,7 @@ Phase 2L makes operator feedback callbacks non-blocking and expands the unified 
 
 ### Milestone 2M: assessment evidence integrity and report verification (draft PR)
 Phase 2M verifies engagement structure and internal count consistency in addition to the canonical SHA-256 checksum. It rejects duplicate finding IDs, malformed or incomplete module records, mismatched summaries and findings attributed to NOT_RUN modules. PDF metadata carries the engagement UUID and JSON checksum to help correlate the two artifacts; it does not sign or checksum the PDF. See [Phase 2M evidence integrity and report verification](docs/PHASE2M_EVIDENCE_INTEGRITY_VERIFICATION.md).
+
+
+### Milestone 2N: cryptographic evidence signing and verification (draft PR)
+Phase 2N adds optional detached Ed25519 signatures for verified engagement JSON records. Operators can generate encrypted private/public key pairs, sign an existing engagement export, and verify signatures offline from the main menu. Private keys are encrypted and owner-only; public-key fingerprints must be trusted out of band. Signatures cover the canonical JSON record, not the PDF bytes, and do not prove assessment accuracy or authorization. See [Phase 2N cryptographic evidence signing](docs/PHASE2N_CRYPTOGRAPHIC_EVIDENCE_SIGNING.md).
