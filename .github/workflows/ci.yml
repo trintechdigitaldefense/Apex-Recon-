@@ -26,6 +26,7 @@ on:
       - phase2e-professional-evidence-reporting
       - phase2f-evidence-reliability
       - phase2g-cross-module-findings
+      - phase2h-smb-osint-findings
 
 permissions:
   contents: read
