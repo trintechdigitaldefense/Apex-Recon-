@@ -77,7 +77,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py tests
+python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -109,3 +109,7 @@ No merge, production release, or client deployment is authorized by this develop
 - [Phase 2C verified TLS assessment scope](docs/PHASE2C_TLS_ASSESSMENT.md)
 
 - [Phase 2D passive CMS and technology fingerprinting](docs/PHASE2D_CMS_TECHNOLOGY_FINGERPRINTING.md)
+
+
+### Milestone 2I: unified engagement reporting (draft PR)
+Phase 2I adds a standalone engagement packaging layer that combines supplied OSINT, SMB, HTTP and TLS module results under one engagement UUID. It tracks each module as COMPLETED, PARTIAL, FAILED or NOT_RUN, preserves per-module target scope and limitations, consolidates normalized findings, and reports severity counts without inventing a composite risk score. JSON and optional ReportLab PDF exports use exclusive file creation and owner-only POSIX permissions. The package is currently an offline aggregation API; the interactive CLI does not yet orchestrate all four modules into one engagement. See [Phase 2I unified engagement reporting](docs/PHASE2I_UNIFIED_ENGAGEMENT_REPORTING.md).
