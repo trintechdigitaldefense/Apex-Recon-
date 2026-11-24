@@ -313,7 +313,7 @@ def _inspect_hsts(headers: Any) -> dict:
             "Duplicate HSTS directive(s): " + ", ".join(sorted(set(duplicates))) + ".",
             "Remove duplicate HSTS directives and retain one explicit max-age value.",
         )
-    if max_age is None or not max_age.isascii() or not max_age.isdigit():
+    if max_age is None or not max_age.isascii() or not max_age.isdigit() or len(max_age) > 20:
         return _finding(
             "HSTS", "MEDIUM", "INVALID",
             "HSTS did not contain one valid non-negative integer max-age directive.",
@@ -422,7 +422,7 @@ def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
 
     xfo_values = _header_values(headers, "X-Frame-Options")
     has_frame_ancestors = any(
-        any(part.strip().split()[:1] == ["frame-ancestors"] for part in policy.split(";"))
+        any((part.strip().split()[:1] and part.strip().split()[0].lower() == "frame-ancestors") for part in policy.split(";"))
         for policy in csp_values
     )
     if has_frame_ancestors:
@@ -442,7 +442,7 @@ def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
         if xfo in {"DENY", "SAMEORIGIN"}:
             findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT", xfo,
                                      "Prefer CSP frame-ancestors for modern browser policy; retain X-Frame-Options where legacy support is required."))
-        elif xfo.startswith("ALLOW-FROM"):
+        elif xfo == "ALLOW-FROM" or xfo.startswith("ALLOW-FROM "):
             findings.append(_finding("CLICKJACKING_PROTECTION", "LOW", "LEGACY_UNSUPPORTED",
                                      xfo[:200],
                                      "Replace obsolete X-Frame-Options ALLOW-FROM with an enforced CSP frame-ancestors policy."))
@@ -476,6 +476,8 @@ def _inspect_cookies(headers: Any, secure_transport: bool) -> list[dict]:
             missing.append("Secure")
         if "httponly" not in names:
             missing.append("HttpOnly")
+        if any(value is not None for key, value in attributes if key in {"secure", "httponly"}):
+            invalid.append("Secure/HttpOnly flag syntax")
 
         same_site = [value for key, value in attributes if key == "samesite"]
         if not same_site:
