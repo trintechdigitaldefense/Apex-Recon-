@@ -78,7 +78,7 @@ def generate_ed25519_keypair(
     passphrase: str,
 ) -> dict:
     """Create an encrypted private key and matching public key, without overwrite."""
-    InvalidSignature, serialization, Ed25519PrivateKey, Ed25519PublicKey = _crypto()
+    _, serialization, Ed25519PrivateKey, _ = _crypto()
     password = _passphrase_bytes(passphrase)
     private_path = Path(private_key_path)
     public_path = Path(public_key_path)
@@ -128,7 +128,7 @@ def sign_engagement_record(
         private_key = serialization.load_pem_private_key(
             Path(private_key_path).read_bytes(), password=password
         )
-    except (OSError, TypeError, ValueError) as exc:
+    except Exception as exc:
         raise EngagementError("private key could not be loaded; check its path and passphrase") from exc
     if not isinstance(private_key, Ed25519PrivateKey):
         raise EngagementError("private key must use Ed25519")
@@ -191,7 +191,7 @@ def verify_engagement_signature(
             return False
         public_key.verify(signature, payload)
         return True
-    except (InvalidSignature, OSError, TypeError, ValueError):
+    except Exception:
         return False
 
 
