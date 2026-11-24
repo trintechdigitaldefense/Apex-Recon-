@@ -87,6 +87,23 @@ class ExecutionJournalTests(unittest.TestCase):
             self.assertEqual(recovered["artifacts"][0]["outcome"], outcome)
             self.assertEqual(recovered["module_states"][MODULES[0]], "COMPLETED")
 
+    def test_module_outcome_status_must_match_journal_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            with self.assertRaisesRegex(ExecutionJournalError, "must match"):
+                journal.finish_module(MODULES[0], "COMPLETED", {
+                    "status": "PARTIAL",
+                    "target_scope": {"target": "example.com"},
+                    "findings": [],
+                    "duration_seconds": 0.1,
+                })
+            report = inspect_execution_journal(path)
+            self.assertTrue(report["valid"])
+            self.assertEqual(report["module_states"][MODULES[0]], "STARTED")
+            self.assertEqual(report["execution_status"], "INCOMPLETE")
+            self.assertEqual(list(Path(directory).glob("*_module_1.json")), [])
+
     def test_module_artifact_tampering_is_detected(self):
         with tempfile.TemporaryDirectory() as directory:
             path, journal, _ = self._create(directory, [MODULES[0]])
