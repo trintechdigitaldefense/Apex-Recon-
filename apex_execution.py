@@ -436,3 +436,35 @@ class ExecutionJournal:
 
     def fail_finalization(self) -> dict:
         return self._append("ENGAGEMENT_FINALIZATION_FAILED")
+
+
+def main(argv=None) -> int:
+    """Inspect an execution journal without resuming any assessment."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Inspect ApexRecon execution state and verify completed module evidence."
+    )
+    parser.add_argument("journal", help="path to apex_execution_<UUID>.jsonl")
+    parser.add_argument(
+        "--verify-artifacts", action="store_true",
+        help="also verify and summarize completed module outcome sidecars",
+    )
+    args = parser.parse_args(argv)
+    try:
+        report = inspect_execution_journal(args.journal)
+        if args.verify_artifacts and report["valid"]:
+            recovered = load_completed_module_artifacts(args.journal)
+            report["verified_artifacts"] = [
+                {"module": item["module"], "status": item["status"]}
+                for item in recovered["artifacts"]
+            ]
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0 if report["valid"] else 1
+    except ExecutionJournalError as exc:
+        print(json.dumps({"valid": False, "error": str(exc)}, indent=2))
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
