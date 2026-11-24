@@ -168,3 +168,7 @@ Phase 2W calibrates passive CMS fingerprint confidence so a self-declared genera
 
 ### Milestone 2X: unavailable-result classification (development)
 Phase 2X keeps transport failures and unreachable endpoints unranked rather than assigning a security severity when the relevant security control could not be assessed. Reports explicitly count UNKNOWN findings. See [Phase 2X evidence-confidence calibration](docs/PHASE2X_EVIDENCE_CONFIDENCE_CALIBRATION.md).
+
+
+### Milestone 2Y: assessment report consistency (development)
+Phase 2Y aligns individual assessment PDF severity summaries with the existing HTTP HTML and unified engagement summaries by explicitly counting UNKNOWN findings. Unavailable checks remain visible as unranked results rather than disappearing from the executive count. This is a reporting and offline-test change only; assessment scope, request limits, authorization gates and network behavior are unchanged. See [Phase 2Y assessment report consistency](docs/PHASE2Y_ASSESSMENT_REPORT_CONSISTENCY.md).
