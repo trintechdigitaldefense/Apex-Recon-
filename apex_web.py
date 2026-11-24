@@ -7,6 +7,7 @@ gate before invoking assess_url().
 """
 from __future__ import annotations
 
+import re
 import socket
 import ssl
 import urllib.error
