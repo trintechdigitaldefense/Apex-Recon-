@@ -29,6 +29,7 @@ The final report path is not visible until the complete staged contents have bee
 
 - Updated HTTP/TLS JSON evidence and PDF export.
 - Updated unified engagement JSON and PDF export.
+- Updated the offline preflight's required-file inventory so a missing apex_storage.py is reported before startup.
 - Preserved exclusive create behavior, owner-only file permissions, checksums, report schemas, and existing filenames.
 - No change to audit JSONL append/recovery behavior, key-pair multi-file transactions, audit backup formats, scan commands, target validation, authorization prompts, request counts, methods, paths, ports, probes, redirects, or assessment scope.
 - No crawling, fuzzing, authentication, form submission, exploitation, recurring scans, background agents, or monitoring.
@@ -39,11 +40,11 @@ The final report path is not visible until the complete staged contents have bee
 Run the offline test suite:
 
 ```bash
-python3 -m compileall -q apex_storage.py apex_evidence.py apex_engagement.py tests
+python3 -m compileall -q apex_storage.py apex_doctor.py apex_evidence.py apex_engagement.py tests
 python3 -m unittest discover -s tests -v
 ```
 
-The new tests exercise successful publication, create-only collision handling, staged-write failure, publication failure, directory-sync failure, cleanup, and permission modes. They use temporary local directories and do not contact targets.
+The new tests exercise successful publication, create-only collision handling, staged-write failure, publication failure, directory-sync failure, cleanup, and permission modes. Preflight tests also verify that the new storage helper is treated as a required project file. They use temporary local directories and do not contact targets.
 
 ## Limitations
 
