@@ -123,7 +123,7 @@ class ApexDoctorTests(unittest.TestCase):
 
     def test_project_layout_reports_missing_core_files(self):
         with tempfile.TemporaryDirectory() as directory:
-            report = doctor.inspect_project(directory)
+            report = doctor.inspect_project(directory, artifact_directory=directory)
         self.assertFalse(report["complete"])
         self.assertTrue(report["writable"])
         self.assertTrue(all(not present for present in report["required_files"].values()))
@@ -154,7 +154,7 @@ class ApexDoctorTests(unittest.TestCase):
     def test_report_explains_same_interpreter_and_storage_checks(self):
         report = self.diagnose(python_version=(3, 12, 0))
         output = doctor.render_report(report)
-        self.assertIn("Project directory write test: WRITABLE", output)
+        self.assertIn("Artifact directory write test: WRITABLE", output)
         self.assertIn("same Python interpreter", output)
         self.assertIn("source .venv/bin/activate", output)
 
