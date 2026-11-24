@@ -45,16 +45,39 @@ class SameHostRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Allow only one same-host, same-path HTTP->HTTPS upgrade redirect."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        old = urllib.parse.urlsplit(req.full_url)
-        new = urllib.parse.urlsplit(urllib.parse.urljoin(req.full_url, newurl))
-        if (new.hostname or "").lower().rstrip(".") != (old.hostname or "").lower().rstrip("."):
+        try:
+            old = urllib.parse.urlsplit(req.full_url)
+            new = urllib.parse.urlsplit(urllib.parse.urljoin(req.full_url, newurl))
+            old_port = old.port
+            new_port = new.port
+        except ValueError as exc:
+            raise RedirectScopeError("redirect URL or port is malformed") from exc
+
+        if (old.username is not None or old.password is not None
+                or new.username is not None or new.password is not None):
+            raise RedirectScopeError("redirect with embedded credentials blocked")
+        if new.fragment:
+            raise RedirectScopeError("redirect URL fragments are blocked")
+        if not old.hostname or not new.hostname:
+            raise RedirectScopeError("redirect must contain a hostname")
+
+        def normalized_host(host):
+            try:
+                return host.encode("idna").decode("ascii").lower().rstrip(".")
+            except UnicodeError as exc:
+                raise RedirectScopeError("redirect hostname is invalid") from exc
+
+        if normalized_host(new.hostname) != normalized_host(old.hostname):
             raise RedirectScopeError("cross-host redirect blocked")
+
         # Permit only one exact-path HTTP -> HTTPS upgrade. Once HTTPS is
         # reached, further redirects are blocked, bounding the assessment to
         # at most two network requests and preventing path/query scope drift.
-        if old.scheme != "http" or new.scheme != "https":
+        if old.scheme.lower() != "http" or new.scheme.lower() != "https":
             raise RedirectScopeError("only HTTP-to-HTTPS upgrade redirects are permitted")
-        if new.port not in (None, 443):
+        if old_port not in (None, 80):
+            raise RedirectScopeError("redirect source uses a non-standard HTTP port")
+        if new_port not in (None, 443):
             raise RedirectScopeError("redirect to non-standard HTTPS port blocked")
         if new.path != old.path or new.query:
             raise RedirectScopeError("redirect path/query scope change blocked")

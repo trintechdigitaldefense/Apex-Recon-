@@ -143,3 +143,7 @@ Phase 2P adds offline export of the Phase 2O audit trail into a portable JSON ba
 
 ### Milestone 2Q: signed audit backup checkpoints (draft PR)
 Phase 2Q adds detached Ed25519 signatures over the exact canonical Phase 2P checkpoint bytes. Signing first verifies the backup/checkpoint pair; verification checks the backup chain, signature, public-key fingerprint and caller-supplied independently trusted fingerprint. Operators can use the encrypted Ed25519 private key from Phase 2N. A signature authenticates possession of the corresponding key, not a person, organization, event truthfulness or assessment accuracy. See [Phase 2Q signed audit backup checkpoints](docs/PHASE2Q_SIGNED_AUDIT_BACKUPS.md).
+
+
+### Milestone 2R: HTTP redirect scope hardening (draft PR)
+Phase 2R hardens the bounded HTTP-to-HTTPS redirect handler. Redirects containing embedded credentials, fragments, malformed ports, invalid hostnames, cross-host destinations, path/query changes or unsupported ports are rejected. The existing same-host HTTP-to-HTTPS upgrade and two-request maximum remain unchanged. See [Phase 2R HTTP redirect scope hardening](docs/PHASE2R_HTTP_REDIRECT_HARDENING.md).

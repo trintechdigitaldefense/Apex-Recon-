@@ -23,6 +23,7 @@ on:
       - phase2o-evidence-audit-trail
       - phase2p-audit-backup-recovery
       - phase2q-signed-audit-backups
+      - phase2r-http-redirect-hardening
   pull_request:
     branches:
       - main
@@ -45,6 +46,7 @@ on:
       - phase2o-evidence-audit-trail
       - phase2p-audit-backup-recovery
       - phase2q-signed-audit-backups
+      - phase2r-http-redirect-hardening
 
 permissions:
   contents: read

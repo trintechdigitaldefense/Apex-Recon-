@@ -60,6 +60,28 @@ class RedirectPolicyTests(unittest.TestCase):
         result = handler.redirect_request(request, None, 301, "Moved", Message(), "https://example.com/")
         self.assertEqual(result.full_url, "https://example.com/")
 
+    def test_blocks_redirect_with_embedded_credentials(self):
+        handler = web.SameHostRedirectHandler()
+        request = __import__("urllib.request").request.Request("http://example.com/")
+        for destination in (
+            "https://user:pass@example.com/",
+            "https://user@example.com/",
+        ):
+            with self.subTest(destination=destination):
+                with self.assertRaises(web.RedirectScopeError):
+                    handler.redirect_request(request, None, 301, "Moved", Message(), destination)
+
+    def test_blocks_redirect_with_malformed_port(self):
+        handler = web.SameHostRedirectHandler()
+        request = __import__("urllib.request").request.Request("http://example.com/")
+        with self.assertRaises(web.RedirectScopeError):
+            handler.redirect_request(request, None, 301, "Moved", Message(), "https://example.com:notaport/")
+
+    def test_blocks_redirect_fragments(self):
+        handler = web.SameHostRedirectHandler()
+        request = __import__("urllib.request").request.Request("http://example.com/")
+        with self.assertRaises(web.RedirectScopeError):
+            handler.redirect_request(request, None, 301, "Moved", Message(), "https://example.com/#fragment")
     def test_blocks_cross_host_redirect(self):
         handler = web.SameHostRedirectHandler()
         request = __import__("urllib.request").request.Request("https://example.com/")
