@@ -38,12 +38,12 @@ The final report path is not visible until the complete staged contents have bee
 
 Run the offline test suite:
 
-\`\`\`bash
+```bash
 python3 -m compileall -q apex_storage.py apex_evidence.py apex_engagement.py tests
 python3 -m unittest discover -s tests -v
-\`\`\`
+```
 
-The new tests exercise successful publication, create-only collision handling, staged-write failure, publication failure, cleanup, and permission modes. They use temporary local directories and do not contact targets.
+The new tests exercise successful publication, create-only collision handling, staged-write failure, publication failure, directory-sync failure, cleanup, and permission modes. They use temporary local directories and do not contact targets.
 
 ## Limitations
 
