@@ -815,7 +815,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <h1>HTTP Security Assessment Report</h1>
 <div class="meta">Assessment ID: {assessment_id}<br>Target: {target} &nbsp;|&nbsp; Path: {path}<br>Generated: {timestamp} &nbsp;|&nbsp; Duration: {duration:.2f}s</div>
 </header>
-<div class="notice"><strong>Scope and interpretation:</strong> This is a bounded HTTP response-configuration assessment, not a comprehensive vulnerability scan or penetration test. Observed missing headers and disclosures are not proof of exploitable vulnerabilities. Review findings in application context.</div>
+<div class="notice"><strong>Scope and interpretation:</strong> This is a bounded HTTP response-configuration assessment, not a comprehensive vulnerability scan or penetration test. Observed missing headers and disclosures are not proof of exploitable vulnerabilities. Review priority is derived from module-assigned severity alone, not asset criticality or confirmed exploitability. Review findings in application context.</div>
 <section class="stats">{summary_cards}</section>
 <section class="panel">
 <h2>Observed Findings</h2>
