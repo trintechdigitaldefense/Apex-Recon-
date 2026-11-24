@@ -19,6 +19,8 @@ import math
 from html import escape as html_escape
 from datetime import datetime
 
+from apex_finding_adapters import osint_result_observations, smb_host_findings
+
 # ─────────────────────────────────────────────
 # ANSI Color Palette
 # ─────────────────────────────────────────────
@@ -193,6 +195,7 @@ def finalize_smb_host(host):
         or host.get("vuln_ms10054_status", "NOT_REPORTED") == "NOT_REPORTED"
     ):
         host["risk_level"] = "UNASSESSED"
+    host["structured_findings"] = smb_host_findings(host)
     return host
 
 
@@ -795,6 +798,10 @@ def osint_module():
         for line in out.splitlines():
             if "/tcp" in line and "open" in line:
                 print(f"  {GREEN}✓{RESET} {WHITE}{line.strip()}{RESET}")
+
+    # Convert only collected datasets into common-schema observations.
+    results["structured_findings"] = osint_result_observations(results)
+    print(f"\n{CYAN}[+] Structured OSINT observations: {len(results['structured_findings'])}{RESET}")
 
     # ── Summary ──────────────────────────────────
     print(f"\n{GREY}[+] OSINT collection complete. Data logged.{RESET}")
