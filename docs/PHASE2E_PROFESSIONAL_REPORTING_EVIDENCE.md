@@ -55,4 +55,4 @@ No live targets are contacted by these tests.
 - ReportLab is optional, so a native PDF will not be created until the dependency is installed in the operator's Python environment.
 - The checksum is a content-integrity aid, not a signature or immutable evidence vault.
 - The feature does not add automatic comparisons between separate assessments, digital signing, a central evidence repository, client portal, recurring scans, or background monitoring.
-- Phase 2E remains a draft development milestone pending CI and operator phone validation. No merge, release or client deployment is included.
+- GitHub Actions passed 94 tests on Python 3.10, 3.11 and 3.12, plus the Linux dependency/import smoke test. Operator phone validation remains pending. No merge, release or client deployment is included.
