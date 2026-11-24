@@ -18,7 +18,7 @@ Use the encrypted Ed25519 key pair generated through Phase 2N. Transfer the publ
 ## Limitations and security boundaries
 - A valid signature proves possession of the private key corresponding to the supplied public key. It does not identify a person or organization; the fingerprint must be trusted out of band.
 - The signature does not prove that original audit events were truthful, complete, authorized or created at the claimed time.
-- `signed_at` is local system time, not a trusted timestamp.
+- `signed_at` is descriptive envelope metadata and is not covered by the checkpoint signature; it is local system time, not a trusted timestamp.
 - Protect the encrypted private key and passphrase. Private-key input rejects symlinks, non-regular files and permissive POSIX file modes.
 - Signature output uses exclusive creation and owner-only POSIX permissions.
 - The signature authenticates the checkpoint, not a PDF or a separate report.
