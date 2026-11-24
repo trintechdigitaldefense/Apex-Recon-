@@ -17,6 +17,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Running this file by path puts tools/ rather than the repository root on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from apex_storage import write_exclusive_atomic
 
 
