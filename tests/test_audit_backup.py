@@ -6,6 +6,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+import apex_audit_backup
 from apex_audit import append_audit_event
 from apex_audit_backup import AuditBackupError, create_audit_backup, verify_audit_backup, restore_audit_backup
 
@@ -32,6 +34,49 @@ class AuditBackupTests(unittest.TestCase):
         result = restore_audit_backup(self.backup, self.checkpoint, target)
         self.assertEqual(target.read_bytes(), self.audit.read_bytes())
         self.assertEqual(result["head_hash"], verify_audit_backup(self.backup, self.checkpoint)["head_hash"])
+
+    def test_restore_uses_one_verified_source_snapshot(self):
+        create_audit_backup(self.audit, self.backup, self.checkpoint)
+        target = Path(self.temp.name) / "snapshot-restored.jsonl"
+        original_read = apex_audit_backup._read_regular
+        reads = {"backup": 0, "checkpoint": 0}
+
+        def mutate_after_read(path, limit):
+            data = original_read(path, limit)
+            if Path(path) == self.backup:
+                reads["backup"] += 1
+                # Change the on-disk file after the verified bytes have been captured.
+                self.backup.write_bytes(b'{"replacement":true}\\n')
+            elif Path(path) == self.checkpoint:
+                reads["checkpoint"] += 1
+            return data
+
+        with patch.object(apex_audit_backup, "_read_regular", side_effect=mutate_after_read):
+            result = restore_audit_backup(self.backup, self.checkpoint, target)
+
+        self.assertEqual(reads, {"backup": 1, "checkpoint": 1})
+        self.assertEqual(target.read_bytes(), self.audit.read_bytes())
+        self.assertEqual(result["audit_sha256"], hashlib.sha256(self.audit.read_bytes()).hexdigest())
+        self.assertEqual(result["restored_bytes"], len(self.audit.read_bytes()))
+
+    def test_restore_refuses_mismatched_source_snapshot(self):
+        create_audit_backup(self.audit, self.backup, self.checkpoint)
+        target = Path(self.temp.name) / "snapshot-mismatch.jsonl"
+        original_read = apex_audit_backup._read_regular
+
+        def mutate_after_backup_read(path, limit):
+            data = original_read(path, limit)
+            if Path(path) == self.backup:
+                self.backup.write_bytes(b'{"replacement":true}\\n')
+            return data
+
+        with patch.object(apex_audit_backup, "_read_regular", side_effect=mutate_after_backup_read):
+            result = restore_audit_backup(self.backup, self.checkpoint, target)
+
+        # Restore uses the already verified snapshot, never the changed path contents.
+        self.assertEqual(target.read_bytes(), self.audit.read_bytes())
+        self.assertNotEqual(target.read_bytes(), self.backup.read_bytes())
+        self.assertEqual(result["audit_sha256"], hashlib.sha256(target.read_bytes()).hexdigest())
 
     def test_tampered_backup_detected(self):
         create_audit_backup(self.audit, self.backup, self.checkpoint)
