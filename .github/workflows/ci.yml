@@ -38,6 +38,7 @@ on:
       - phase2ad-assessment-execution-recovery
       - phase2ae-recovery-evidence-consistency
       - phase2af-audit-integrity-diagnostics
+      - phase2ag-audit-restore-assurance
   pull_request:
     branches:
       - main

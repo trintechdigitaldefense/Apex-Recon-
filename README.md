@@ -207,3 +207,7 @@ Phase 2AE rejects a recovered module artifact when the outcome's own status conf
 
 ### Milestone 2AF: audit journal integrity diagnostics (development)
 Phase 2AF improves offline verification of the local JSONL audit trail. Verification reports the original file's byte count and SHA-256, the number and byte length of the verified prefix, the prefix SHA-256, and a structured failure code/sequence when corruption is found. Duplicate records and broken sequence/hash-chain conditions are identified; an incomplete final write can be distinguished from corruption in an earlier event. Verification never truncates, repairs, rewrites or appends to the source trail, and append continues to fail closed for any invalid trail. Prefix metadata is diagnostic evidence, not authorization to discard the unverified tail. See [Phase 2AF audit integrity diagnostics](docs/PHASE2AF_AUDIT_INTEGRITY_DIAGNOSTICS.md).
+
+
+### Milestone 2AG: audit backup restoration assurance (development)
+Phase 2AG makes restoration use one captured backup/checkpoint byte pair: the exact backup bytes validated against the detached checkpoint are the source of the restored audit payload. Post-write checks compare byte length, SHA-256, event count and hash-chain head with the verified snapshot. Existing destinations remain create-only. This closes a verification/reopen gap but does not make backup/checkpoint creation a cross-file atomic transaction or prove audit-event truthfulness. See [Phase 2AG audit restore assurance](docs/PHASE2AG_AUDIT_RESTORE_ASSURANCE.md).
