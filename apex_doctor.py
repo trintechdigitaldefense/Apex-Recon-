@@ -43,19 +43,21 @@ REQUIRED_PROJECT_FILES = (
 
 def inspect_project(
     project_root: str | os.PathLike[str] | None = None,
+    artifact_directory: str | os.PathLike[str] | None = None,
     write_probe: bool = True,
 ) -> dict:
-    """Check required source files and actual project-directory write access."""
+    """Check required source files and actual artifact-directory write access."""
     root = Path(project_root).resolve() if project_root is not None else Path(__file__).resolve().parent
+    output_dir = Path(artifact_directory).resolve() if artifact_directory is not None else Path.cwd().resolve()
     files = {name: (root / name).is_file() for name in REQUIRED_PROJECT_FILES}
     writable = False
     write_error = None
-    if write_probe and root.is_dir():
+    if write_probe and output_dir.is_dir():
         try:
             with tempfile.NamedTemporaryFile(
                 mode="wb",
                 prefix=".apexrecon-write-check-",
-                dir=str(root),
+                dir=str(output_dir),
                 delete=True,
             ):
                 pass
@@ -64,6 +66,7 @@ def inspect_project(
             write_error = type(exc).__name__
     return {
         "root": str(root),
+        "artifact_directory": str(output_dir),
         "required_files": files,
         "complete": all(files.values()),
         "writable": writable,
@@ -78,6 +81,7 @@ def collect_diagnostics(
     system: str | None = None,
     prefix: str | None = None,
     project_root: str | os.PathLike[str] | None = None,
+    artifact_directory: str | os.PathLike[str] | None = None,
     write_probe: bool = True,
     python_prefix: str | None = None,
     python_base_prefix: str | None = None,
@@ -108,7 +112,7 @@ def collect_diagnostics(
         "pip_available": bool(module_lookup("pip")),
         "venv_available": bool(module_lookup("venv")),
     }
-    project = inspect_project(project_root, write_probe)
+    project = inspect_project(project_root, artifact_directory, write_probe)
 
     return {
         "python": {
@@ -135,7 +139,7 @@ def collect_diagnostics(
             "pdf_export": python_packages["reportlab"],
             "evidence_signing": python_packages["cryptography"],
             "project_layout": project["complete"],
-            "project_directory_writable": project["writable"],
+            "artifact_directory_writable": project["writable"],
         },
     }
 
@@ -170,7 +174,8 @@ def render_report(report: dict) -> str:
         "Project and report storage:",
         f"  Project directory: {project.get('root', '[not checked]')}",
         "  Required core files: " + ("PRESENT" if project.get("complete") else "MISSING"),
-        "  Project directory write test: " + ("WRITABLE" if project.get("writable") else "FAILED"),
+        f"  Artifact output directory: {project.get('artifact_directory', '[not checked]')}",
+        "  Artifact directory write test: " + ("WRITABLE" if project.get("writable") else "FAILED"),
     ]
     if not project.get("complete"):
         missing = [name for name, present in project.get("required_files", {}).items() if not present]
