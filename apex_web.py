@@ -188,6 +188,74 @@ def _finding(check: str, severity: str, status: str, evidence: str, recommendati
     )
 
 
+def _inspect_csp_policy(csp: str) -> list[dict]:
+    """Report conservative CSP hardening indicators from one enforced policy.
+
+    This is a static header review, not a browser-policy simulator. It does not
+    determine whether a directive is effective for a particular application.
+    """
+    directives: dict[str, list[str]] = {}
+    for part in csp.split(";"):
+        tokens = part.strip().split()
+        if not tokens:
+            continue
+        name = tokens[0].lower()
+        # Browsers ignore later duplicate directives; retain the first instance.
+        directives.setdefault(name, tokens[1:])
+
+    findings = []
+    script_sources = directives.get("script-src", directives.get("default-src", []))
+    style_sources = directives.get("style-src", directives.get("default-src", []))
+    object_sources = directives.get("object-src", directives.get("default-src", []))
+
+    if "'unsafe-eval'" in {item.lower() for item in script_sources}:
+        findings.append(_finding(
+            "CSP_UNSAFE_EVAL", "MEDIUM", "REVIEW",
+            "The effective script source list contains 'unsafe-eval'.",
+            "Remove 'unsafe-eval' where possible and replace eval-like behavior with safer application code."
+        ))
+    if "'unsafe-inline'" in {item.lower() for item in script_sources}:
+        findings.append(_finding(
+            "CSP_UNSAFE_INLINE_SCRIPT", "LOW", "REVIEW",
+            "The effective script source list contains 'unsafe-inline'.",
+            "Prefer nonces or hashes for required inline scripts; validate compatibility before tightening the policy."
+        ))
+    if "'unsafe-inline'" in {item.lower() for item in style_sources}:
+        findings.append(_finding(
+            "CSP_UNSAFE_INLINE_STYLE", "LOW", "REVIEW",
+            "The effective style source list contains 'unsafe-inline'.",
+            "Consider nonces or hashes for required inline styles after testing application compatibility."
+        ))
+
+    source_lists = (
+        ("default-src", directives.get("default-src", [])),
+        ("script-src", script_sources),
+        ("style-src", style_sources),
+        ("img-src", directives.get("img-src", directives.get("default-src", []))),
+        ("connect-src", directives.get("connect-src", directives.get("default-src", []))),
+    )
+    wildcard_directives = [name for name, sources in source_lists if "*" in sources]
+    if wildcard_directives:
+        findings.append(_finding(
+            "CSP_WILDCARD_SOURCE", "LOW", "REVIEW",
+            "Wildcard source (*) observed in: " + ", ".join(sorted(set(wildcard_directives))) + ".",
+            "Replace broad wildcard sources with the smallest set of required trusted origins."
+        ))
+
+    if not object_sources or "'none'" not in {item.lower() for item in object_sources}:
+        findings.append(_finding(
+            "CSP_OBJECT_SRC", "LOW", "REVIEW",
+            "The effective object-src directive does not explicitly restrict plugin content to 'none'.",
+            "Consider object-src 'none' unless the application has a documented requirement for embedded plugin content."
+        ))
+    if "base-uri" not in directives:
+        findings.append(_finding(
+            "CSP_BASE_URI", "LOW", "REVIEW",
+            "The CSP does not define base-uri.",
+            "Consider base-uri 'self' or 'none' to restrict document base URL changes."
+        ))
+    return findings
+
 def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
     findings = []
     if scheme == "https":
@@ -221,6 +289,8 @@ def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
                                      f"{header_name} response header was not present.", recommendation))
 
     csp = _header(headers, "Content-Security-Policy") or ""
+    if csp:
+        findings.extend(_inspect_csp_policy(csp))
     xfo = _header(headers, "X-Frame-Options")
     if "frame-ancestors" in csp.lower():
         findings.append(_finding("CLICKJACKING_PROTECTION", "INFO", "PRESENT",

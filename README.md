@@ -147,3 +147,7 @@ Phase 2Q adds detached Ed25519 signatures over the exact canonical Phase 2P chec
 
 ### Milestone 2R: HTTP redirect scope hardening (draft PR)
 Phase 2R hardens the bounded HTTP-to-HTTPS redirect handler. Redirects containing embedded credentials, fragments, malformed ports, invalid hostnames, cross-host destinations, path/query changes or unsupported ports are rejected. The existing same-host HTTP-to-HTTPS upgrade and two-request maximum remain unchanged. See [Phase 2R HTTP redirect scope hardening](docs/PHASE2R_HTTP_REDIRECT_HARDENING.md).
+
+
+### Milestone 2S: CSP policy quality observations (draft PR)
+Phase 2S extends the existing HTTP response-header review with conservative static Content-Security-Policy hardening observations. It flags selected risky source expressions (`unsafe-inline`, `unsafe-eval`, and wildcard sources), and reviews object-src and base-uri restrictions. These are review indicators, not proof of exploitability or a browser-policy verdict. The existing two-request, read-only HTTP scope is unchanged. See [Phase 2S CSP policy quality](docs/PHASE2S_CSP_POLICY_QUALITY.md).
