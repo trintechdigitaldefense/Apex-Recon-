@@ -102,7 +102,7 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y nmap whois dnsutils curl
+          sudo apt-get install -y nmap whois dnsutils curl iproute2
       - name: Verify dependency detection and safe startup imports
         run: |
           python apex_doctor.py --json > /dev/null
