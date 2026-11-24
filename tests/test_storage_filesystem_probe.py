@@ -58,6 +58,37 @@ class StorageFilesystemProbeTests(unittest.TestCase):
             self.assertTrue(report["temporary_artifacts_removed"])
             self.assertEqual(list(Path(parent).iterdir()), [])
 
+    def test_probe_accepts_link_sidecars_removed_with_published_artifact(self):
+        with tempfile.TemporaryDirectory(prefix="apexrecon-probe-linked-sidecar-") as parent:
+            real_link = os.link
+            real_unlink = Path.unlink
+
+            def link_with_inode_sidecar(source, destination, *args, **kwargs):
+                result = real_link(source, destination, *args, **kwargs)
+                if Path(destination).name == "atomic-probe.bin":
+                    sidecar = Path(destination).parent / ".l2s.atomic-inode"
+                    sidecar.write_bytes(b"filesystem-managed helper")
+                return result
+
+            def unlink_with_inode_sidecar_cleanup(path, *args, **kwargs):
+                path = Path(path)
+                if path.name == "atomic-probe.bin":
+                    sidecar = path.parent / ".l2s.atomic-inode"
+                    if sidecar.exists():
+                        real_unlink(sidecar)
+                return real_unlink(path, *args, **kwargs)
+
+            with mock.patch("os.link", side_effect=link_with_inode_sidecar):
+                with mock.patch.object(Path, "unlink", unlink_with_inode_sidecar_cleanup):
+                    report = apex_storage_probe.probe(Path(parent))
+
+            self.assertTrue(report["atomic_publication"]["supported"])
+            self.assertTrue(report["atomic_publication"]["content_verified"])
+            self.assertTrue(report["atomic_publication"]["cleanup_supported"])
+            self.assertTrue(report["overall_atomic_storage_compatible"])
+            self.assertTrue(report["temporary_artifacts_removed"])
+            self.assertEqual(list(Path(parent).iterdir()), [])
+
     def test_probe_rejects_nonexistent_parent_without_creating_it(self):
         with tempfile.TemporaryDirectory(prefix="apexrecon-probe-parent-") as parent:
             missing = Path(parent) / "does-not-exist"
