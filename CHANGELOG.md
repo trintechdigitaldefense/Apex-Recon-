@@ -102,3 +102,12 @@ v2.0 is a ground-up upgrade focused on structured output, vulnerability detectio
 ### Initial Release
 - Initial Termux-first SMB audit proof of concept.
 - Interactive CLI, timestamped audit logging and basic Nmap SMB enumeration.
+
+
+## Phase 2B — HTTP CLI and report integration (development)
+- Add HTTP Security Assessment as interactive menu option 3.
+- Require the existing exact-scope written-authorization attestation before network requests.
+- Add a dedicated responsive HTML report with escaped evidence, severity counts, remediation guidance, scope notes and explicit limitations.
+- Preserve the legacy SMB report path and existing OSINT/SMB menu behavior.
+- Add mocked regression tests for authorization gating, CLI integration, report escaping and private report permissions.
+- No live target scans, merge, release or deployment are included.

@@ -908,6 +908,66 @@ def smb_auditor_module():
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
 # ─────────────────────────────────────────────
+# MODULE 3: HTTP Security Assessment
+# ─────────────────────────────────────────────
+def http_assessment_module():
+    """Run one bounded HTTP assessment after operator authorization."""
+    from apex_web import AssessmentInputError, assess_url, generate_html_report, normalize_target_url
+    import urllib.parse
+
+    print_banner()
+    print(f"{RED}[*] HTTP Security Assessment — bounded, read-only checks{RESET}\n")
+    raw_target = input(f"{WHITE}Enter authorized URL or hostname: {RESET}").strip()
+
+    try:
+        parsed = normalize_target_url(raw_target)
+    except AssessmentInputError as exc:
+        print(f"{RED}[!] Invalid target: {exc}{RESET}")
+        return
+
+    scoped_target = urllib.parse.urlunsplit(parsed)
+    print(f"{GREY}Assessment scope: {scoped_target}{RESET}")
+    if not confirm_authorized_scope(scoped_target):
+        print(f"{YELLOW}[!] Authorization not confirmed. No HTTP requests were made.{RESET}")
+        return
+
+    print(f"\n{CYAN}[+] Performing bounded HTTP assessment...{RESET}")
+    print(f"{GREY}    One URL path; no crawling, authentication, fuzzing, or exploitation.{RESET}")
+    started = time.time()
+    try:
+        result = assess_url(scoped_target)
+    except AssessmentInputError as exc:
+        print(f"{RED}[!] Assessment input rejected: {exc}{RESET}")
+        return
+    duration = round(time.time() - started, 2)
+
+    for finding in result.get("findings", []):
+        severity = str(finding.get("severity", "INFO")).upper()
+        badge = risk_badge(severity)
+        print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
+        print(f"         {finding.get('evidence', '')}")
+
+    try:
+        report_path = generate_html_report(result, duration)
+    except OSError as exc:
+        print(f"{RED}[!] Assessment completed, but report could not be saved: {exc}{RESET}")
+        log(f"HTTP assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
+        return
+
+    summary = {
+        "target": result.get("target"),
+        "path": result.get("path"),
+        "duration_seconds": duration,
+        "findings": len(result.get("findings", [])),
+        "report": report_path,
+    }
+    log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
+    print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
+    print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
+    input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+
+
+# ─────────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────────
 def main_menu():
@@ -917,6 +977,8 @@ def main_menu():
     print(f"       {GREY}DNS · WHOIS · GeoIP · Open Ports · Banner grab{RESET}")
     print(f"  {RED}[2]{RESET} {WHITE}Local Network SMB Auditor{RESET}")
     print(f"       {GREY}Host discovery · Share enum · EternalBlue check · HTML report{RESET}")
+    print(f"  {RED}[3]{RESET} {WHITE}HTTP Security Assessment{RESET}")
+    print(f"       {GREY}HTTPS enforcement · Security headers · Cookie flags · HTML report{RESET}")
     print(f"  {RED}[9]{RESET} {WHITE}Exit Framework{RESET}\n")
     return input(f"{RED}Apex{WHITE}@{RED}TrinTech{WHITE}:~#{RESET} ")
 
@@ -935,6 +997,8 @@ if __name__ == "__main__":
             osint_module()
         elif choice == '2':
             smb_auditor_module()
+        elif choice == '3':
+            http_assessment_module()
         elif choice == '9':
             print(f"{GREY}Terminating session...{RESET}")
             log("ApexRecon exited cleanly.")
