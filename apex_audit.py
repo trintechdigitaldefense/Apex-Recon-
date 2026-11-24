@@ -50,7 +50,7 @@ def _verify_bytes(data: bytes) -> dict:
         return {"valid": True, "entries": 0, "head_hash": GENESIS_HASH, "error": None}
     if len(data) > MAX_AUDIT_BYTES:
         return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail exceeds size limit"}
-    if not data.endswith(b"\\n"):
+    if not data.endswith(b"\n"):
         return {"valid": False, "entries": 0, "head_hash": None, "error": "audit trail has an incomplete final event"}
     try:
         text = data.decode("utf-8")
