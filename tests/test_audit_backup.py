@@ -53,7 +53,11 @@ class AuditBackupTests(unittest.TestCase):
         raw = base64.b64decode(data["audit_jsonl_base64"]).replace(b"SUCCESS", b"INVALID")
         data["audit_jsonl_base64"] = base64.b64encode(raw).decode("ascii")
         data["audit_sha256"] = hashlib.sha256(raw).hexdigest()
-        self.backup.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n")
+        backup_bytes = json.dumps(data, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        self.backup.write_bytes(backup_bytes)
+        checkpoint = json.loads(self.checkpoint.read_text())
+        checkpoint["backup_sha256"] = hashlib.sha256(backup_bytes).hexdigest()
+        self.checkpoint.write_text(json.dumps(checkpoint, sort_keys=True, separators=(",", ":")) + "\n")
         with self.assertRaises(AuditBackupError):
             verify_audit_backup(self.backup, self.checkpoint)
 
