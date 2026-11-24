@@ -37,6 +37,9 @@ on:
       - phase2ac-crash-safe-artifact-publication
       - phase2ad-assessment-execution-recovery
       - phase2ae-recovery-evidence-consistency
+      - phase2af-audit-integrity-diagnostics
+      - phase2ae-recovery-evidence-consistency
+      - phase2af-audit-integrity-diagnostics
   pull_request:
     branches:
       - main
