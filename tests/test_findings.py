@@ -78,6 +78,20 @@ class FindingNormalizationTests(unittest.TestCase):
         self.assertEqual(finding["recommendation_status"], "MISSING")
         self.assertEqual(finding["recommendation"], "")
 
+    def test_legacy_v1_0_findings_keep_their_original_shape(self):
+        current = normalize_finding(self.sample(), "HTTP Security Assessment")
+        legacy = {key: value for key, value in current.items() if key not in {
+            "severity_basis", "review_priority", "review_priority_note", "recommendation_status"
+        }}
+        legacy["schema_version"] = "1.0"
+        self.assertEqual(normalize_finding(legacy, "HTTP Security Assessment"), legacy)
+
+    def test_rejects_unknown_schema_versions(self):
+        raw = self.sample()
+        raw["schema_version"] = "99.0"
+        with self.assertRaises(FindingSchemaError):
+            normalize_finding(raw, "HTTP Security Assessment")
+
     def test_bounds_untrusted_text(self):
         raw = self.sample()
         raw["evidence"] = "x" * 9000
