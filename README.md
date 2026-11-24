@@ -87,7 +87,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_doctor.py apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
+python3 -m compileall -q apex_storage.py apex_doctor.py apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -193,3 +193,6 @@ Phase 2AA makes startup dependency reporting feature-specific. Missing Nmap prev
 
 ### Milestone 2AB: installation and operational reliability (development)
 Phase 2AB expands the offline preflight to check the required project files, actual artifact-output-directory write access, the active Python interpreter, virtual-environment state, and pip/venv availability. It adds isolated-environment guidance and recovery steps for common Termux/proot and externally-managed Python issues. The diagnostic creates and removes one temporary local file; it does not install packages, alter permissions, or contact targets. No assessment behavior or authorization gates change. See [Phase 2AB installation and operational reliability](docs/PHASE2AB_INSTALLATION_OPERATIONAL_RELIABILITY.md).
+
+### Milestone 2AC: crash-safe assessment artifact publication (development)
+Phase 2AC stages HTTP/TLS evidence and unified engagement JSON/PDF outputs in hidden temporary files, flushes them, and publishes complete artifacts atomically without overwriting existing evidence. If interrupted before publication, a final report file is not exposed; a hidden staging file may require manual cleanup. The change is local storage behavior only and does not alter assessment scope or network behavior. See [Phase 2AC crash-safe artifact publication](docs/PHASE2AC_CRASH_SAFE_ARTIFACT_PUBLICATION.md).

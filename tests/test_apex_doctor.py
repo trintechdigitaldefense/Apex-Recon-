@@ -128,6 +128,16 @@ class ApexDoctorTests(unittest.TestCase):
         self.assertTrue(report["writable"])
         self.assertTrue(all(not present for present in report["required_files"].values()))
 
+    def test_project_layout_requires_atomic_storage_helper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in doctor.REQUIRED_PROJECT_FILES:
+                if name != "apex_storage.py":
+                    (root / name).touch()
+            report = doctor.inspect_project(root, artifact_directory=root)
+        self.assertFalse(report["complete"])
+        self.assertFalse(report["required_files"]["apex_storage.py"])
+
     def test_project_write_probe_leaves_no_temporary_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             report = doctor.inspect_project(directory)
