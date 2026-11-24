@@ -40,12 +40,26 @@ class EvidenceExportTests(unittest.TestCase):
         self.assertEqual(record["assessment"]["started_at"], "2026-11-23T11:59:57Z")
         self.assertEqual(record["assessment"]["completed_at"], "2026-11-23T12:00:00Z")
         self.assertEqual(record["evidence"]["findings"][0]["check"], "CSP")
+        self.assertEqual(record["evidence"]["findings"][0]["module"], "HTTP Security Assessment")
+        self.assertEqual(record["evidence"]["findings"][0]["confidence"], "UNKNOWN")
+        self.assertEqual(record["evidence"]["findings"][0]["evidence_type"], "UNKNOWN")
+        self.assertTrue(record["evidence"]["findings"][0]["finding_id"].startswith("ARF-"))
         self.assertEqual(record["evidence"]["fingerprints"][0]["confidence"], "medium")
         checksum = record["integrity"]["assessment_sha256"]
         unsigned = dict(record)
         unsigned.pop("integrity")
         expected = hashlib.sha256(evidence._canonical_json(unsigned)).hexdigest()
         self.assertEqual(checksum, expected)
+
+    def test_record_preserves_normalized_finding_metadata(self):
+        result = self.sample()
+        result["findings"][0]["confidence"] = "MEDIUM"
+        result["findings"][0]["evidence_type"] = "INDICATOR"
+        record = evidence.build_evidence_record(result, 0.1)
+        finding = record["evidence"]["findings"][0]
+        self.assertEqual(finding["confidence"], "MEDIUM")
+        self.assertEqual(finding["evidence_type"], "INDICATOR")
+        self.assertEqual(finding["severity"], "MEDIUM")
 
     def test_record_does_not_include_url_query_or_raw_response(self):
         result = self.sample()
