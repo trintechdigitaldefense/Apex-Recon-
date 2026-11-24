@@ -69,18 +69,20 @@ class ModuleAssemblyTests(unittest.TestCase):
         self.assertEqual(record["summary"]["total_findings"], 1)
         self.assertTrue(verify_engagement_record(record))
 
-    def test_rejects_invalid_outcomes_and_not_run_findings(self):
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {"status": "UNKNOWN"}})
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {
-                "status": "NOT_RUN", "target_scope": {"target": "example.com"},
-                "findings": [{"check": "x"}],
-            }})
-        with self.assertRaises(ValueError):
-            assemble_module_results({MODULE_NAMES[0]}, {MODULE_NAMES[0]: {
-                "status": "COMPLETED", "target_scope": {}, "findings": [],
-            }})
+    def test_invalid_outcomes_and_not_run_findings_become_failed(self):
+        invalid_outcomes = (
+            {"status": "UNKNOWN", "target_scope": {"target": "example.com"}, "findings": []},
+            {"status": "NOT_RUN", "target_scope": {"target": "example.com"},
+             "findings": [{"check": "x"}]},
+            {"status": "COMPLETED", "target_scope": {}, "findings": []},
+        )
+        for outcome in invalid_outcomes:
+            with self.subTest(outcome=outcome):
+                entries = assemble_module_results(
+                    {MODULE_NAMES[0]}, {MODULE_NAMES[0]: outcome}
+                )
+                self.assertEqual(entries[0]["status"], "FAILED")
+                self.assertEqual(entries[0]["findings"], [])
 
     def test_invalid_module_output_isolated_as_failed_without_losing_other_results(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
