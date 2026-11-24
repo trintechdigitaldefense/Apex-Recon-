@@ -32,6 +32,7 @@ on:
       - phase2x-evidence-confidence-calibration
       - phase2y-report-consistency
       - phase2z-installation-preflight
+      - phase2aa-capability-aware-startup
   pull_request:
     branches:
       - main
@@ -63,6 +64,7 @@ on:
       - phase2x-evidence-confidence-calibration
       - phase2y-report-consistency
       - phase2z-installation-preflight
+      - phase2aa-capability-aware-startup
 
 permissions:
   contents: read
