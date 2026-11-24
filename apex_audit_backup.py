@@ -148,8 +148,8 @@ def verify_audit_backup(backup_path, checkpoint_path):
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AuditBackupError("backup or checkpoint is not valid UTF-8 JSON") from exc
     try:
-        backup_canonical = _canonical(backup) + b"\\n" if isinstance(backup, dict) else None
-        checkpoint_canonical = _canonical(checkpoint) + b"\\n" if isinstance(checkpoint, dict) else None
+        backup_canonical = _canonical(backup) + b"\n" if isinstance(backup, dict) else None
+        checkpoint_canonical = _canonical(checkpoint) + b"\n" if isinstance(checkpoint, dict) else None
     except (TypeError, ValueError) as exc:
         raise AuditBackupError("backup or checkpoint contains invalid JSON values") from exc
     if backup_canonical != backup_bytes:
