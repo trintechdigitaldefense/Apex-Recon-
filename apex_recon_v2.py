@@ -1153,7 +1153,8 @@ def unified_engagement_module():
         MODULE_NAMES[3]: tls_assessment_module,
     }
     def report_module_start(name):
-        print(f"\\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
+        print(f"
+{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
 
     def report_module_error(name, exc):
         print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
