@@ -1,3 +1,11 @@
+## [2.0.1-dev] — Phase 2S CSP policy quality observations
+
+### Assessment quality
+- Add static CSP review indicators for unsafe-inline, unsafe-eval, wildcard source expressions, object-src restrictions and base-uri.
+- Respect first-occurrence handling for duplicate CSP directives during parsing.
+- Keep all CSP quality results as review indicators; no exploitability or policy-effectiveness claim is made.
+- No new network requests, probes, paths or target scope.
+
 ## [2.0.1-dev] — Phase 2R HTTP redirect scope hardening
 
 ### Security hardening
