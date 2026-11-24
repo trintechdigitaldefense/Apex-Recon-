@@ -51,6 +51,16 @@ class AtomicArtifactStorageTests(unittest.TestCase):
             self.assertFalse(destination.exists())
             self.assertEqual(list(Path(directory).glob(".apexrecon-tmp-*")), [])
 
+    def test_directory_fsync_failure_removes_published_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "assessment.json"
+            with patch("apex_storage.os.fsync", side_effect=[None, OSError("directory sync failure")]):
+                with self.assertRaisesRegex(OSError, "directory sync failure"):
+                    write_exclusive_atomic(destination, b"must-not-remain")
+
+            self.assertFalse(destination.exists())
+            self.assertEqual(list(Path(directory).glob(".apexrecon-tmp-*")), [])
+
     def test_rejects_non_bytes_and_invalid_permission_modes(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "assessment.json"
