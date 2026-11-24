@@ -166,6 +166,41 @@ class ModuleAssemblyTests(unittest.TestCase):
         self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
         self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "COMPLETED")
 
+    def test_callback_exceptions_do_not_interrupt_module_execution(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        calls = []
+
+        def healthy(label):
+            def run():
+                calls.append(label)
+                return {
+                    "status": "COMPLETED", "target_scope": {"target": "example.com"},
+                    "findings": [], "duration_seconds": 0.1,
+                }
+            return run
+
+        def broken_start(_name):
+            raise RuntimeError("synthetic output failure")
+
+        def broken_error(_name, _exc):
+            raise RuntimeError("synthetic logging failure")
+
+        def broken_runner():
+            calls.append("broken")
+            raise RuntimeError("synthetic module failure")
+
+        outcomes = run_selected_modules(
+            selected,
+            {MODULE_NAMES[0]: broken_runner, MODULE_NAMES[2]: healthy("healthy")},
+            on_start=broken_start,
+            on_error=broken_error,
+        )
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(calls, ["broken", "healthy"])
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "COMPLETED")
+
     def test_runner_missing_or_returns_none_is_recorded_without_abort(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
         outcomes = run_selected_modules(selected, {MODULE_NAMES[0]: lambda: None})
