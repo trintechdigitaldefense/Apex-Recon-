@@ -203,3 +203,7 @@ Phase 2AD adds a private hash-chained execution journal to unified engagements. 
 
 ### Milestone 2AE: recovered evidence and execution-state consistency (development)
 Phase 2AE rejects a recovered module artifact when the outcome's own status conflicts with the terminal status recorded in the execution journal. The same consistency check runs before a sidecar is written, preventing contradictory recovery evidence from being published. A mismatch leaves the module unresolved and the engagement incomplete. No assessment scope, target interaction, authorization gate, or automatic recovery behavior changes. See [Phase 2AE recovered evidence consistency](docs/PHASE2AE_RECOVERY_EVIDENCE_CONSISTENCY.md).
+
+
+### Milestone 2AF: audit journal integrity diagnostics (development)
+Phase 2AF improves offline verification of the local JSONL audit trail. Verification reports the original file's byte count and SHA-256, the number and byte length of the verified prefix, the prefix SHA-256, and a structured failure code/sequence when corruption is found. Duplicate records and broken sequence/hash-chain conditions are identified; an incomplete final write can be distinguished from corruption in an earlier event. Verification never truncates, repairs, rewrites or appends to the source trail, and append continues to fail closed for any invalid trail. Prefix metadata is diagnostic evidence, not authorization to discard the unverified tail. See [Phase 2AF audit integrity diagnostics](docs/PHASE2AF_AUDIT_INTEGRITY_DIAGNOSTICS.md).
