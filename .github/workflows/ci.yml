@@ -25,6 +25,7 @@ on:
       - phase2q-signed-audit-backups
       - phase2r-http-redirect-hardening
       - phase2s-csp-policy-quality
+      - phase2t-http-header-accuracy
   pull_request:
     branches:
       - main
