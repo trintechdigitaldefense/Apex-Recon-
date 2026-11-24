@@ -728,7 +728,7 @@ def build_osint_port_scan_command(target):
 # ─────────────────────────────────────────────
 # MODULE 1: OSINT — External Footprinting
 # ─────────────────────────────────────────────
-def osint_module():
+def osint_module(*, engagement_mode=False):
     print_banner()
     print(f"{RED}[*] External Footprinting (OSINT Module){RESET}\n")
     domain = input(f"{WHITE}Enter target domain (e.g., example.com): {RESET}").strip()
@@ -740,6 +740,7 @@ def osint_module():
         print(f"{YELLOW}[!] Authorization not confirmed. Returning without scanning.{RESET}")
         return
 
+    started = time.time()
     log(f"OSINT scan started on domain: {domain}")
     results = {}
 
@@ -807,12 +808,19 @@ def osint_module():
     print(f"\n{GREY}[+] OSINT collection complete. Data logged.{RESET}")
     log(f"OSINT complete for {domain}: {json.dumps(results, indent=2)}")
 
+    duration = round(time.time() - started, 2)
+    module_result = _engagement_module_result(
+        "External Footprinting (OSINT)", "COMPLETED", {"target": domain},
+        results.get("structured_findings", []), duration,
+        ["OSINT collection is best-effort; missing records are not negative security results.",
+         "The existing GeoIP workflow sends the resolved target IP to ipinfo.io."])
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+    return module_result if engagement_mode else None
 
 # ─────────────────────────────────────────────
 # MODULE 2: SMB Network Auditor
 # ─────────────────────────────────────────────
-def smb_auditor_module():
+def smb_auditor_module(*, engagement_mode=False):
     print_banner()
     print(f"{RED}[*] Local Network SMB Auditor — Enterprise Build{RESET}\n")
 
@@ -858,12 +866,14 @@ def smb_auditor_module():
         print(f"{RED}[!] nmap not installed — run: apt-get install nmap{RESET}")
         log("ERROR: nmap not found")
         input(f"\n{GREY}Press Enter to return...{RESET}")
-        return
+        return (_engagement_module_result("SMB Network Auditor", "FAILED", {"network": target_ip}, [], 0,
+                ["Nmap executable was unavailable."]) if engagement_mode else None)
 
     if not out:
         print(f"{YELLOW}[!] No output returned. Check target or network connectivity.{RESET}")
         input(f"\n{GREY}Press Enter to return...{RESET}")
-        return
+        return (_engagement_module_result("SMB Network Auditor", "FAILED", {"network": target_ip}, [],
+                round(time.time() - start, 2), ["Nmap returned no output."]) if engagement_mode else None)
 
     print(f"{GREY}--- Raw Output ---{RESET}\n{out}\n{GREY}------------------{RESET}\n")
 
@@ -913,7 +923,25 @@ def smb_auditor_module():
     log(f"SMB Audit complete in {duration}s. Hosts found: {len(hosts)}")
     log(f"Raw output:\n{out}\n")
 
+    module_findings = [finding for host in hosts for finding in host.get("structured_findings", [])]
+    module_result = _engagement_module_result(
+        "SMB Network Auditor", "COMPLETED", {"network": target_ip}, module_findings, duration,
+        ["Nmap NSE vulnerability results are indicators and require independent verification.",
+         "Only the configured SMB scripts and ports were assessed."])
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+    return module_result if engagement_mode else None
+
+def _engagement_module_result(module, status, target_scope, findings, duration, limitations=None):
+    """Return a bounded result object for the offline engagement packager."""
+    return {
+        "module": module,
+        "status": status,
+        "target_scope": target_scope,
+        "findings": list(findings or []),
+        "duration_seconds": max(0.0, min(float(duration or 0), 86400.0)),
+        "limitations": list(limitations or []),
+    }
+
 
 def save_evidence_exports(result, duration):
     """Save Phase 2E JSON evidence and optional native PDF artifacts."""
@@ -936,7 +964,7 @@ def save_evidence_exports(result, duration):
 # ─────────────────────────────────────────────
 # MODULE 3: HTTP Security Assessment
 # ─────────────────────────────────────────────
-def http_assessment_module():
+def http_assessment_module(*, engagement_mode=False):
     """Run one bounded HTTP assessment after operator authorization."""
     from apex_web import AssessmentInputError, assess_url, generate_html_report, normalize_target_url
     import urllib.parse
@@ -979,7 +1007,10 @@ def http_assessment_module():
     except OSError as exc:
         print(f"{RED}[!] Assessment completed, but report could not be saved: {exc}{RESET}")
         log(f"HTTP assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
-        return
+        module_result = _engagement_module_result("HTTP Security Assessment", "PARTIAL",
+            {"url": scoped_target}, result.get("findings", []), duration,
+            ["HTTP assessment completed, but the standalone HTML report could not be saved."])
+        return module_result if engagement_mode else None
 
     artifacts = save_evidence_exports(result, duration)
 
@@ -995,13 +1026,18 @@ def http_assessment_module():
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
+    module_result = _engagement_module_result(
+        "HTTP Security Assessment", "COMPLETED", {"url": scoped_target},
+        result.get("findings", []), duration,
+        ["HTTP checks are bounded configuration observations, not proof of exploitability."])
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+    return module_result if engagement_mode else None
 
 
 # ─────────────────────────────────────────────
 # MODULE 4: TLS Security Assessment
 # ─────────────────────────────────────────────
-def tls_assessment_module():
+def tls_assessment_module(*, engagement_mode=False):
     """Run one verified TLS handshake after exact-scope authorization."""
     from apex_tls import TLSAssessmentInputError, assess_tls, generate_html_report, normalize_tls_target
 
@@ -1042,7 +1078,10 @@ def tls_assessment_module():
     except OSError as exc:
         print(f"{RED}[!] TLS assessment completed, but report could not be saved: {exc}{RESET}")
         log(f"TLS assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
-        return
+        module_result = _engagement_module_result("TLS Security Assessment", "PARTIAL",
+            {"host": host, "port": 443}, result.get("findings", []), duration,
+            ["TLS assessment completed, but the standalone HTML report could not be saved."])
+        return module_result if engagement_mode else None
 
     artifacts = save_evidence_exports(result, duration)
 
@@ -1059,6 +1098,69 @@ def tls_assessment_module():
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
+    module_result = _engagement_module_result(
+        "TLS Security Assessment", "COMPLETED", {"host": host, "port": 443},
+        result.get("findings", []), duration,
+        ["TLS reports one certificate-verified handshake; it does not enumerate all supported protocols or ciphers."])
+    input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+    return module_result if engagement_mode else None
+
+
+# ─────────────────────────────────────────────
+# UNIFIED ENGAGEMENT WORKFLOW
+# ─────────────────────────────────────────────
+def unified_engagement_module():
+    """Run selected existing modules and export one consolidated engagement."""
+    from apex_engagement import build_engagement_record, export_engagement_json, export_engagement_pdf
+    from apex_engagement_cli import MODULE_NAMES, parse_module_selection, assemble_module_results
+
+    print_banner()
+    print(f"{RED}[*] Unified Engagement — operator-selected modules{RESET}\n")
+    engagement_name = input(f"{WHITE}Engagement name/reference: {RESET}").strip()
+    if not engagement_name:
+        print(f"{YELLOW}[!] Engagement name is required. No modules were run.{RESET}")
+        return
+    print("\nSelect modules by number, separated by commas, or enter ALL:")
+    for number, name in enumerate(MODULE_NAMES, 1):
+        print(f"  [{number}] {name}")
+    selection_text = input("Modules: ").strip()
+    try:
+        selected = parse_module_selection(selection_text)
+    except ValueError as exc:
+        print(f"{RED}[!] {exc}. No modules were run.{RESET}")
+        return
+    runners = {
+        MODULE_NAMES[0]: osint_module,
+        MODULE_NAMES[1]: smb_auditor_module,
+        MODULE_NAMES[2]: http_assessment_module,
+        MODULE_NAMES[3]: tls_assessment_module,
+    }
+    outcomes = {}
+    for name in MODULE_NAMES:
+        if name not in selected:
+            continue
+        print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
+        outcomes[name] = runners[name](engagement_mode=True)
+    try:
+        module_results = assemble_module_results(selected, outcomes)
+        record = build_engagement_record({"engagement_name": engagement_name}, module_results)
+        json_path = export_engagement_json(record)
+    except (OSError, ValueError) as exc:
+        print(f"{RED}[!] Unified engagement export failed: {exc}{RESET}")
+        log(f"Unified engagement export failed: {type(exc).__name__}")
+        return
+    pdf_path = None
+    try:
+        pdf_path = export_engagement_pdf(record)
+    except Exception as exc:
+        print(f"{YELLOW}[i] JSON report saved; PDF export unavailable: {type(exc).__name__}: {exc}{RESET}")
+    print(f"\n{GREEN}[+] Unified JSON report saved: {BOLD}{json_path}{RESET}")
+    if pdf_path:
+        print(f"{GREEN}[+] Unified PDF report saved: {BOLD}{pdf_path}{RESET}")
+    print(f"{WHITE}Engagement: {record['engagement']['status']} | Findings: {record['summary']['total_findings']}{RESET}")
+    for module in record["modules"]:
+        print(f"  {module['status']:9} {module['module']} ({module['finding_count']} findings)")
+    log("Unified engagement exported: " + json.dumps({"id": record["engagement"]["id"], "json": json_path, "pdf": pdf_path}, sort_keys=True))
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
 
@@ -1076,6 +1178,8 @@ def main_menu():
     print(f"       {GREY}HTTPS enforcement · Security headers · Cookie flags · HTML report{RESET}")
     print(f"  {RED}[4]{RESET} {WHITE}TLS Security Assessment{RESET}")
     print(f"       {GREY}Certificate validation · Expiry · Negotiated TLS protocol/cipher · HTML report{RESET}")
+    print(f"  {RED}[5]{RESET} {WHITE}Unified Engagement (OSINT/SMB/HTTP/TLS){RESET}")
+    print(f"       {GREY}Select modules · track coverage · export combined JSON/PDF{RESET}")
     print(f"  {RED}[9]{RESET} {WHITE}Exit Framework{RESET}\n")
     return input(f"{RED}Apex{WHITE}@{RED}TrinTech{WHITE}:~#{RESET} ")
 
@@ -1098,6 +1202,8 @@ if __name__ == "__main__":
             http_assessment_module()
         elif choice == '4':
             tls_assessment_module()
+        elif choice == '5':
+            unified_engagement_module()
         elif choice == '9':
             print(f"{GREY}Terminating session...{RESET}")
             log("ApexRecon exited cleanly.")
