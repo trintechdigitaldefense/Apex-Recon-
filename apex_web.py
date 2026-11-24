@@ -256,6 +256,90 @@ def _inspect_csp_policy(csp: str) -> list[dict]:
         ))
     return findings
 
+def _cookie_evidence_summary(value: str) -> str:
+    """Describe cookie security attributes without exporting cookie values."""
+    parts = [part.strip() for part in str(value).split(";")]
+    name = parts[0].split("=", 1)[0][:80] if parts else "unknown"
+    attributes = []
+    for part in parts[1:]:
+        if not part:
+            continue
+        key, separator, raw = part.partition("=")
+        key = key.strip().lower()
+        if key in {"secure", "httponly"}:
+            attributes.append(key)
+        elif key in {"samesite", "path", "domain"}:
+            attributes.append(f"{key}={raw.strip()[:100]}" if separator else key)
+        else:
+            attributes.append(key)
+    return f"cookie-name={name}; attributes={', '.join(attributes) or 'none'}"
+
+
+def _attach_response_evidence(
+    findings: list[dict], headers: Any, status: int, final_url: str
+) -> None:
+    """Attach bounded response provenance and observed header values to findings.
+
+    Set-Cookie values and CSP nonce/hash tokens are deliberately redacted.
+    """
+    source_headers = {
+        "HSTS": ("Strict-Transport-Security",),
+        "CSP": ("Content-Security-Policy",),
+        "CSP_REPORT_ONLY": ("Content-Security-Policy-Report-Only",),
+        "CSP_UNSAFE_EVAL": ("Content-Security-Policy",),
+        "CSP_UNSAFE_INLINE_SCRIPT": ("Content-Security-Policy",),
+        "CSP_UNSAFE_INLINE_STYLE": ("Content-Security-Policy",),
+        "CSP_WILDCARD_SOURCE": ("Content-Security-Policy",),
+        "CSP_OBJECT_SRC": ("Content-Security-Policy",),
+        "CSP_BASE_URI": ("Content-Security-Policy",),
+        "MIME_SNIFFING": ("X-Content-Type-Options",),
+        "REFERRER_POLICY": ("Referrer-Policy",),
+        "PERMISSIONS_POLICY": ("Permissions-Policy",),
+        "CLICKJACKING_PROTECTION": ("Content-Security-Policy", "X-Frame-Options"),
+        "COOKIE_FLAGS": ("Set-Cookie",),
+        "SERVER_HEADER": ("Server",),
+        "X_POWERED_BY": ("X-Powered-By",),
+    }
+    safe_url = _safe_url(final_url)
+    for finding in findings:
+        observations = []
+        for name in source_headers.get(finding.get("check"), ()):
+            values = _header_values(headers, name)
+            if not values:
+                observations.append(f"{name}: absent")
+                continue
+            if name.lower() == "set-cookie":
+                rendered = [_cookie_evidence_summary(value) for value in values]
+            else:
+                rendered = values
+                if name.lower() == "content-security-policy":
+                    rendered = [
+                        re.sub(
+                            r"(?i)(?:'nonce-[^']*'|'sha(?:256|384|512)-[^']*')",
+                            "'[REDACTED_TOKEN]'",
+                            value,
+                        )
+                        for value in rendered
+                    ]
+            observations.append(
+                f"{name}: " + " | ".join(repr(value[:350]) for value in rendered[:4])
+            )
+        context = f"Response provenance: HTTPS status {int(status)} at {safe_url}."
+        if observations:
+            context += " Observed: " + "; ".join(observations) + "."
+        updated = normalize_finding(
+            {
+                **finding,
+                "evidence": (str(finding.get("evidence", "")) + " " + context)[:4000],
+            },
+            "HTTP Security Assessment",
+            default_confidence=finding.get("confidence", "UNKNOWN"),
+            default_evidence_type=finding.get("evidence_type", "UNKNOWN"),
+        )
+        finding.clear()
+        finding.update(updated)
+
+
 def _status_class(status: int) -> str:
     """Classify an HTTP status code without treating the class as a vulnerability verdict."""
     try:
@@ -567,6 +651,7 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         findings.append(_finding("HTTPS_ENDPOINT", "INFO", "RESPONDED",
                                  f"HTTPS endpoint returned HTTP status {https_result.status} ({status_class}).",
                                  "Review the application response and its authentication/access controls. HTTP status classes are descriptive observations, not vulnerability verdicts."))
+        https_finding_start = len(findings)
         findings.extend(_inspect_headers(https_result.headers, "https"))
         findings.extend(_inspect_cookies(https_result.headers, True))
         server = _header(https_result.headers, "Server")
@@ -575,10 +660,26 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
             if value:
                 findings.append(_finding(name, "LOW", "DISCLOSED", value[:200],
                                          "Consider minimising version/product disclosure where it is not operationally required."))
+        _attach_response_evidence(
+            findings[https_finding_start:],
+            https_result.headers,
+            https_result.status,
+            https_result.final_url,
+        )
     else:
         findings.append(_finding("HTTPS_ENDPOINT", "MEDIUM", "UNAVAILABLE",
                                  f"HTTPS endpoint could not be assessed: {type(https_result).__name__}.",
                                  "Verify DNS, network reachability, certificate validity, and HTTPS listener configuration. TLS details are assessed in a separate phase."))
+
+    if isinstance(http_result, FetchResult):
+        enforcement = next(
+            (item for item in findings if item.get("check") == "HTTPS_ENFORCEMENT"),
+            None,
+        )
+        if enforcement is not None:
+            _attach_response_evidence(
+                [enforcement], http_result.headers, http_result.status, http_result.final_url
+            )
 
     http_final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower() if isinstance(http_result, FetchResult) else None
     http_redirected_to_https = http_final_scheme == "https"
