@@ -125,7 +125,7 @@ def build_evidence_record(
     payload = {
         "schema_version": SCHEMA_VERSION,
         "assessment": {
-            "id": assessment_id or str(uuid.uuid4()),
+            "id": assessment_id or result.get("assessment_id") or str(uuid.uuid4()),
             "module": _clean_text(result["module"], 100),
             "target_scope": scope,
             "status": _clean_text(result.get("status", "COMPLETED"), 100),
