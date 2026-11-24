@@ -37,9 +37,9 @@ A module state can be NOT_STARTED, STARTED, COMPLETED, PARTIAL, FAILED, or NOT_R
 
 Inspect a journal without changing it:
 
-\`\`\`bash
-python3 apex_execution.py apex_execution_UUID.jsonl
-\`\`\`
+```bash
+python3 apex_execution.py apex_execution_UUID.jsonl --verify-artifacts
+```
 
 Use the Python helper load_completed_module_artifacts(path) to load only the verified module sidecars. Rebuild or export a report manually after reviewing the recovered module states and evidence. Never re-run a module merely because its journal state is incomplete without a new operator decision and fresh scope/authorization confirmation.
 
@@ -58,9 +58,9 @@ Use the Python helper load_completed_module_artifacts(path) to load only the ver
 
 ## Validation
 
-\`\`\`bash
+```bash
 python3 -m compileall -q apex_execution.py apex_engagement_cli.py apex_recon_v2.py apex_doctor.py tests
 python3 -m unittest discover -s tests -v
-\`\`\`
+```
 
 Tests use temporary local files and synthetic module outcomes. They cover valid state transitions, incomplete recovery, no automatic resume, outcome sidecar recovery, tamper detection, torn journal tails, and strict checkpoint failure behavior.
