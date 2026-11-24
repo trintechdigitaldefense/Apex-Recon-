@@ -91,7 +91,7 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 ## Current limitations
 
 - The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
-- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T improved HTTP header-value accuracy and response classification. Phase 2U improved HTTP evidence traceability and report consistency. Phase 2V adds conservative finding triage metadata and recommendation-presence reporting.
+- Phase 2A through Phase 2S have been merged into their respective development branches. They remain outside `main` and have not been released or deployed. Phase 2T improved HTTP header-value accuracy and response classification. Phase 2U improved HTTP evidence traceability and report consistency. Phase 2V adds conservative finding triage metadata and recommendation-presence reporting. Phase 2W calibrates passive fingerprint confidence and improves CMS generator metadata parsing.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
 - CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export for HTTP/TLS assessments is optional and requires ReportLab; the legacy SMB report remains HTML.
@@ -160,3 +160,7 @@ Phase 2U attaches bounded response provenance and the relevant observed header v
 
 ### Milestone 2V: finding quality and remediation triage (development)
 Phase 2V adds explicit severity provenance, a conservative review-priority tier derived only from the existing module-assigned severity, and a recommendation-presence indicator. Unknown severities remain UNRANKED; missing recommendations remain visible rather than being filled with invented advice. Review priority is a triage aid, not a composite risk score, confirmation of exploitability, or an automatic remediation instruction. JSON evidence and PDF/HTML report paths expose the additional metadata. No scan behavior, network requests, authorization gates or target scope are changed. See [Phase 2V finding quality and remediation triage](docs/PHASE2V_FINDING_QUALITY_REMEDIATION.md).
+
+
+### Milestone 2W: assessment accuracy and fingerprint confidence calibration (development)
+Phase 2W calibrates passive CMS fingerprint confidence so a self-declared generator meta tag alone is not treated as high-confidence identification. It also accepts valid HTML meta-attribute ordering and labels server/application response banners as low-confidence technology attribution because headers can be changed or spoofed. The bounded response sample and existing request limits are unchanged. See [Phase 2W assessment accuracy and false-positive reduction](docs/PHASE2W_ASSESSMENT_ACCURACY_FALSE_POSITIVES.md).

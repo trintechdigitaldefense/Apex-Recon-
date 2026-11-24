@@ -25,7 +25,14 @@ class FingerprintTests(unittest.TestCase):
         results = fingerprint(self.headers(), html)
         wordpress = next(item for item in results if item["name"] == "WordPress")
         self.assertEqual(wordpress["version"], "6.5.2")
-        self.assertEqual(wordpress["confidence"], "high")
+        self.assertEqual(wordpress["confidence"], "medium")
+
+    def test_generator_detection_accepts_attribute_order_and_does_not_overstate_confidence(self):
+        html = b'<meta content="WordPress 6.5.2" name="generator">'
+        results = fingerprint(self.headers(), html)
+        wordpress = next(item for item in results if item["name"] == "WordPress")
+        self.assertEqual(wordpress["confidence"], "medium")
+        self.assertEqual(wordpress["version"], "6.5.2")
 
     def test_non_numeric_generator_does_not_become_a_version(self):
         html = b'<meta name="generator" content="WordPress custom-build">'
@@ -57,7 +64,8 @@ class FingerprintTests(unittest.TestCase):
     def test_response_header_technology_is_labelled_as_observed(self):
         results = fingerprint(self.headers(Server="nginx/1.24", X_Powered_By="PHP/8.2"), b"")
         by_name = {item["name"]: item for item in results}
-        self.assertEqual(by_name["nginx/1.24"]["confidence"], "observed")
+        self.assertEqual(by_name["nginx/1.24"]["confidence"], "low")
+        self.assertIn(by_name["nginx/1.24"]["confidence"], {"high", "medium", "low", "unknown"})
         self.assertEqual(by_name["PHP/8.2"]["category"], "Application header")
 
     def test_non_html_response_does_not_create_body_fingerprints(self):
