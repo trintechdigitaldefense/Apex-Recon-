@@ -371,17 +371,21 @@ def _inspect_headers(headers: Any, scheme: str) -> list[dict]:
             "Use report-only mode to test policy changes, then deploy an enforced Content-Security-Policy when ready.",
         ))
 
-    xcto = _header(headers, "X-Content-Type-Options")
-    if xcto is None:
+    xcto_values = _header_values(headers, "X-Content-Type-Options")
+    if not xcto_values:
         findings.append(_finding("MIME_SNIFFING", "MEDIUM", "MISSING",
                                  "X-Content-Type-Options response header was not present.",
                                  "Set X-Content-Type-Options: nosniff."))
-    elif xcto.strip().lower() == "nosniff":
-        findings.append(_finding("MIME_SNIFFING", "INFO", "PRESENT", xcto[:200],
+    elif len(xcto_values) > 1:
+        findings.append(_finding("MIME_SNIFFING", "MEDIUM", "AMBIGUOUS",
+                                 f"{len(xcto_values)} X-Content-Type-Options values were observed.",
+                                 "Send one unambiguous X-Content-Type-Options: nosniff header."))
+    elif xcto_values[0].strip().lower() == "nosniff":
+        findings.append(_finding("MIME_SNIFFING", "INFO", "PRESENT", xcto_values[0][:200],
                                  "Keep X-Content-Type-Options set to nosniff."))
     else:
         findings.append(_finding("MIME_SNIFFING", "MEDIUM", "INVALID",
-                                 f"Unrecognized X-Content-Type-Options value: {xcto[:200]!r}.",
+                                 f"Unrecognized X-Content-Type-Options value: {xcto_values[0][:200]!r}.",
                                  "Use the supported value X-Content-Type-Options: nosniff."))
 
     referrer_values = _header_values(headers, "Referrer-Policy")
