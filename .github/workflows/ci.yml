@@ -30,6 +30,7 @@ on:
       - phase2v-finding-quality-remediation
       - phase2w-assessment-accuracy-fp-reduction
       - phase2x-evidence-confidence-calibration
+      - phase2y-report-consistency
   pull_request:
     branches:
       - main
@@ -59,6 +60,7 @@ on:
       - phase2v-finding-quality-remediation
       - phase2w-assessment-accuracy-fp-reduction
       - phase2x-evidence-confidence-calibration
+      - phase2y-report-consistency
 
 permissions:
   contents: read

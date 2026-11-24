@@ -137,6 +137,43 @@ class EvidenceExportTests(unittest.TestCase):
             self.assertIsNone(artifacts["pdf_path"])
             self.assertIn("simulated PDF storage failure", artifacts["pdf_error"])
 
+    def test_pdf_summary_counts_unavailable_findings_as_unknown(self):
+        try:
+            import reportlab.platypus
+        except ImportError:
+            self.skipTest("ReportLab is optional")
+
+        result = self.sample()
+        result["findings"].append({
+            "check": "HTTPS_ENDPOINT",
+            "severity": "UNKNOWN",
+            "status": "UNAVAILABLE",
+            "evidence": "HTTPS endpoint could not be assessed.",
+            "recommendation": "Confirm reachability before drawing conclusions.",
+        })
+        record = evidence.build_evidence_record(result, 0.25)
+        captured = {}
+
+        def capture_build(_document, flowables, *args, **kwargs):
+            captured["paragraphs"] = [
+                item.getPlainText() for item in flowables
+                if hasattr(item, "getPlainText")
+            ]
+
+        with patch(
+            "reportlab.platypus.SimpleDocTemplate.build",
+            autospec=True,
+            side_effect=capture_build,
+        ):
+            evidence.generate_pdf_bytes(record)
+
+        summary = next(
+            text for text in captured["paragraphs"]
+            if text.startswith("Finding counts:")
+        )
+        self.assertIn("UNKNOWN: 1", summary)
+        self.assertIn("MEDIUM: 1", summary)
+
     def test_pdf_generation_or_clear_optional_dependency_error(self):
         record = evidence.build_evidence_record(self.sample(), 0.25)
         try:
