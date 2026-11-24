@@ -111,3 +111,13 @@ v2.0 is a ground-up upgrade focused on structured output, vulnerability detectio
 - Preserve the legacy SMB report path and existing OSINT/SMB menu behavior.
 - Add mocked regression tests for authorization gating, CLI integration, report escaping and private report permissions.
 - No live target scans, merge, release or deployment are included.
+
+
+## Phase 2C — Verified TLS assessment (development)
+- Add a separate TLS assessment module using one TCP/443 connection and one certificate-verified TLS handshake.
+- Preserve system trust-chain and hostname verification; do not use an unverified fallback.
+- Report certificate subject/issuer, returned SANs, validity/expiry and negotiated protocol/cipher.
+- Classify certificate expiry within 7 days as HIGH and within 30 days as MEDIUM.
+- Add an operator authorization gate for the exact host:443 scope and a separate escaped, owner-only HTML report.
+- Explicitly limit interpretation to the one negotiated client/server session; do not claim a complete server protocol/cipher inventory.
+- Add offline mocked socket/SSL and CLI integration tests. No live target was contacted.

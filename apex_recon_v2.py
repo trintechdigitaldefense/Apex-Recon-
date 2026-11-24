@@ -968,6 +968,65 @@ def http_assessment_module():
 
 
 # ─────────────────────────────────────────────
+# MODULE 4: TLS Security Assessment
+# ─────────────────────────────────────────────
+def tls_assessment_module():
+    """Run one verified TLS handshake after exact-scope authorization."""
+    from apex_tls import TLSAssessmentInputError, assess_tls, generate_html_report, normalize_tls_target
+
+    print_banner()
+    print(f"{RED}[*] TLS Security Assessment — one verified handshake{RESET}\n")
+    raw_target = input(f"{WHITE}Enter authorized hostname, IP, or URL: {RESET}").strip()
+    try:
+        host = normalize_tls_target(raw_target)
+    except TLSAssessmentInputError as exc:
+        print(f"{RED}[!] Invalid target: {exc}{RESET}")
+        return
+
+    scoped_target = f"[{host}]:443" if ":" in host else f"{host}:443"
+    print(f"{GREY}Assessment scope: {scoped_target}{RESET}")
+    if not confirm_authorized_scope(scoped_target):
+        print(f"{YELLOW}[!] Authorization not confirmed. No TLS connection was made.{RESET}")
+        return
+
+    print(f"\n{CYAN}[+] Performing one certificate-verified TLS handshake...{RESET}")
+    print(f"{GREY}    TCP/443 only; no downgrade or protocol/cipher enumeration.{RESET}")
+    started = time.time()
+    try:
+        result = assess_tls(host)
+    except TLSAssessmentInputError as exc:
+        print(f"{RED}[!] Assessment input rejected: {exc}{RESET}")
+        return
+    duration = round(time.time() - started, 2)
+
+    for finding in result.get("findings", []):
+        severity = str(finding.get("severity", "INFO")).upper()
+        badge = risk_badge(severity)
+        print(f"  {badge} {finding.get('check', 'UNKNOWN')}: {finding.get('status', 'UNKNOWN')}")
+        print(f"         {finding.get('evidence', '')}")
+
+    try:
+        report_path = generate_html_report(result, duration)
+    except OSError as exc:
+        print(f"{RED}[!] TLS assessment completed, but report could not be saved: {exc}{RESET}")
+        log(f"TLS assessment completed for {scoped_target}; report write failed: {type(exc).__name__}")
+        return
+
+    summary = {
+        "target": result.get("target"),
+        "port": result.get("port"),
+        "status": result.get("status"),
+        "duration_seconds": duration,
+        "findings": len(result.get("findings", [])),
+        "report": report_path,
+    }
+    log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
+    print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
+    print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
+    input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
+
+
+# ─────────────────────────────────────────────
 # MAIN MENU
 # ─────────────────────────────────────────────
 def main_menu():
@@ -979,6 +1038,8 @@ def main_menu():
     print(f"       {GREY}Host discovery · Share enum · EternalBlue check · HTML report{RESET}")
     print(f"  {RED}[3]{RESET} {WHITE}HTTP Security Assessment{RESET}")
     print(f"       {GREY}HTTPS enforcement · Security headers · Cookie flags · HTML report{RESET}")
+    print(f"  {RED}[4]{RESET} {WHITE}TLS Security Assessment{RESET}")
+    print(f"       {GREY}Certificate validation · Expiry · Negotiated TLS protocol/cipher · HTML report{RESET}")
     print(f"  {RED}[9]{RESET} {WHITE}Exit Framework{RESET}\n")
     return input(f"{RED}Apex{WHITE}@{RED}TrinTech{WHITE}:~#{RESET} ")
 
@@ -999,6 +1060,8 @@ if __name__ == "__main__":
             smb_auditor_module()
         elif choice == '3':
             http_assessment_module()
+        elif choice == '4':
+            tls_assessment_module()
         elif choice == '9':
             print(f"{GREY}Terminating session...{RESET}")
             log("ApexRecon exited cleanly.")
