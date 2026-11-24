@@ -71,7 +71,12 @@ def _verify_bytes(data: bytes) -> dict:
             entry = json.loads(line)
             if not isinstance(entry, dict) or set(entry) != expected_keys:
                 raise ValueError("invalid event fields")
-            if entry["schema_version"] != AUDIT_SCHEMA or entry["sequence"] != index:
+            if _canonical(entry).decode("utf-8") != line:
+                raise ValueError("event JSON is not canonical")
+            if (entry["schema_version"] != AUDIT_SCHEMA
+                    or isinstance(entry["sequence"], bool)
+                    or not isinstance(entry["sequence"], int)
+                    or entry["sequence"] != index):
                 raise ValueError("unsupported schema or sequence")
             if entry["event_type"] not in EVENT_TYPES or entry["result"] not in RESULTS:
                 raise ValueError("unsupported event type or result")
@@ -193,7 +198,10 @@ def append_audit_event(
             raise AuditTrailError("audit trail size limit reached")
         written = 0
         while written < len(payload):
-            written += os.write(fd, payload[written:])
+            count = os.write(fd, payload[written:])
+            if count <= 0:
+                raise OSError("audit event write made no progress")
+            written += count
         os.fsync(fd)
         return entry
     except OSError as exc:
