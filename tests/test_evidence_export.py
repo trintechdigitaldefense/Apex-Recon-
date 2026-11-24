@@ -106,6 +106,10 @@ class EvidenceExportTests(unittest.TestCase):
             evidence._safe_url("https://[2001:db8::1]:443/status?secret=x"),
             "https://[2001:db8::1]:443/status",
         )
+        self.assertEqual(
+            evidence._safe_url("https://example.test:99999/path?token=hidden"),
+            "[REDACTED_INVALID_URL]",
+        )
 
     def test_invalid_assessment_uuid_is_rejected(self):
         with self.assertRaises(evidence.EvidenceExportError):
