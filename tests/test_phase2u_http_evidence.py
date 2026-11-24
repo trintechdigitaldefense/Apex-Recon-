@@ -1,9 +1,10 @@
 import importlib.util
-import io
 import json
+import os
+import re
+import zlib
 import tempfile
 import unittest
-import urllib.parse
 from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
@@ -47,6 +48,8 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
         self.assertIn("max-age=31536000", hsts["evidence"])
         self.assertIn("HTTPS status 200", hsts["evidence"])
         self.assertIn("https://example.test/login", hsts["evidence"])
+        endpoint = next(item for item in result["findings"] if item["check"] == "HTTPS_ENDPOINT")
+        self.assertIn("https://example.test/login", endpoint["evidence"])
         self.assertNotIn("token=", json.dumps(result))
         self.assertEqual(mocked_fetch.call_count, 1)
 
@@ -122,15 +125,15 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
         self.assertIn(expected, exported)
 
         with tempfile.TemporaryDirectory() as tmp:
-            original = __import__("os").getcwd()
+            original = os.getcwd()
             try:
-                __import__("os").chdir(tmp)
+                os.chdir(tmp)
                 html_path = web.generate_html_report(result, 1.0)
                 html = Path(html_path).read_text(encoding="utf-8")
                 self.assertIn("X-Content-Type-Options", html)
                 self.assertIn("nosniff", html)
             finally:
-                __import__("os").chdir(original)
+                os.chdir(original)
 
         try:
             pdf = evidence.generate_pdf_bytes(record)
@@ -138,6 +141,16 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
             self.skipTest("ReportLab is not installed in this environment")
         self.assertTrue(pdf.startswith(b"%PDF-"))
         self.assertGreater(len(pdf), 1000)
+        streams = re.findall(rb"stream\\r?\\n(.*?)\\r?\\nendstream", pdf, re.S)
+        decoded = []
+        for stream in streams:
+            try:
+                decoded.append(zlib.decompress(stream))
+            except zlib.error:
+                decoded.append(stream)
+        pdf_text = b" ".join(decoded)
+        self.assertIn(b"X-Content-Type-Options", pdf_text)
+        self.assertIn(b"nosniff", pdf_text)
 
 
 if __name__ == "__main__":
