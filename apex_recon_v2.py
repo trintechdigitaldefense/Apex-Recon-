@@ -907,6 +907,24 @@ def smb_auditor_module():
 
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
+def save_evidence_exports(result, duration):
+    """Save Phase 2E JSON evidence and optional native PDF artifacts."""
+    from apex_evidence import export_artifacts
+
+    try:
+        artifacts = export_artifacts(result, duration)
+    except (OSError, ValueError) as exc:
+        print(f"{YELLOW}[!] Evidence export failed: {exc}{RESET}")
+        log(f"Evidence export failed: {type(exc).__name__}")
+        return {}
+    print(f"{GREEN}[+] Structured evidence saved: {BOLD}{artifacts['json_path']}{RESET}")
+    if artifacts["pdf_path"]:
+        print(f"{GREEN}[+] Native PDF report saved: {BOLD}{artifacts['pdf_path']}{RESET}")
+    elif artifacts["pdf_error"]:
+        print(f"{YELLOW}[i] {artifacts['pdf_error']}{RESET}")
+    return artifacts
+
+
 # ─────────────────────────────────────────────
 # MODULE 3: HTTP Security Assessment
 # ─────────────────────────────────────────────
@@ -960,9 +978,12 @@ def http_assessment_module():
         "duration_seconds": duration,
         "findings": len(result.get("findings", [])),
         "report": report_path,
+        "evidence_json": artifacts.get("json_path"),
+        "native_pdf": artifacts.get("pdf_path"),
     }
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
+    artifacts = save_evidence_exports(result, duration)
     print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
@@ -1019,9 +1040,12 @@ def tls_assessment_module():
         "duration_seconds": duration,
         "findings": len(result.get("findings", [])),
         "report": report_path,
+        "evidence_json": artifacts.get("json_path"),
+        "native_pdf": artifacts.get("pdf_path"),
     }
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
+    artifacts = save_evidence_exports(result, duration)
     print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
 
