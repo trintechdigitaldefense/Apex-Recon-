@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from apex_fingerprint import fingerprint
+from apex_findings import normalize_finding
 
 
 USER_AGENT = "ApexRecon/2.1-dev (+authorized security assessment)"
@@ -149,13 +150,19 @@ def _header_values(headers: Any, name: str) -> list[str]:
 
 
 def _finding(check: str, severity: str, status: str, evidence: str, recommendation: str) -> dict:
-    return {
-        "check": check,
-        "severity": severity,
-        "status": status,
-        "evidence": evidence,
-        "recommendation": recommendation,
-    }
+    """Create a common-schema finding from a direct HTTP response observation."""
+    return normalize_finding(
+        {
+            "check": check,
+            "severity": severity,
+            "status": status,
+            "evidence": evidence,
+            "recommendation": recommendation,
+        },
+        "HTTP Security Assessment",
+        default_confidence="HIGH",
+        default_evidence_type="OBSERVATION",
+    )
 
 
 def _inspect_headers(headers: Any, scheme: str) -> list[dict]:

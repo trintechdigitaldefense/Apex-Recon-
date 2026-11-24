@@ -41,6 +41,11 @@ Phase 2F adds checksum verification before evidence is exported or rendered, str
 
 See [Phase 2F evidence reliability](docs/PHASE2F_EVIDENCE_RELIABILITY.md).
 
+
+### Milestone 2G: common finding schema (draft PR)
+Phase 2G introduces a shared, versioned finding structure for the HTTP and TLS modules. Findings now carry a stable identifier, source module, severity, status, confidence, evidence type, evidence text and remediation recommendation. Unknown values remain UNKNOWN; the normalizer does not promote severity or infer exploitability. JSON evidence exports preserve the normalized metadata. The existing SMB parser still uses legacy free-text findings and OSINT remains a raw collection workflow, so neither is represented as fully migrated by this milestone. See [Phase 2G cross-module finding consistency](docs/PHASE2G_CROSS_MODULE_FINDINGS.md).
+
+
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
 ## R1 stabilization and privacy

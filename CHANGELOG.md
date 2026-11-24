@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.1-dev] — Phase 2G common finding schema
+
+### Added
+- Shared versioned finding normalization for HTTP and TLS assessment observations.
+- Stable finding identifiers and explicit source module, confidence, and evidence-type fields.
+- Evidence JSON export preserves the normalized finding metadata.
+- Conservative normalization: unsupported severity/confidence/evidence-type values become UNKNOWN rather than being promoted.
+- Offline tests for schema validation, stable identifiers, metadata preservation and module integration.
+
+### Boundaries
+- SMB free-text findings and OSINT raw collection are not yet migrated to the common finding schema.
+- No new network requests, scan scope, or target interaction.
+- No combined engagement report, automatic risk scoring, recurring scans, or background monitoring.
+- Draft PR only; no merge, release or client deployment.
+
+
 ## [2.0.1-dev] — Phase 2F evidence quality and export reliability
 
 ### Added

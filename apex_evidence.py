@@ -17,6 +17,8 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
+from apex_findings import FindingSchemaError, normalize_findings
+
 
 SCHEMA_VERSION = "1.0"
 TOOL_NAME = "ApexRecon"
@@ -148,15 +150,15 @@ def build_evidence_record(
         if result.get(key) is not None:
             scope[key] = _clean_text(result[key], 1000)
 
-    finding_records = []
-    for item in findings:
-        finding_records.append({
-            "check": _clean_text(item.get("check", "UNKNOWN"), 200),
-            "severity": _clean_text(item.get("severity", "INFO"), 40).upper(),
-            "status": _clean_text(item.get("status", "UNKNOWN"), 100),
-            "evidence": _clean_text(item.get("evidence", "")),
-            "recommendation": _clean_text(item.get("recommendation", "")),
-        })
+    try:
+        finding_records = normalize_findings(
+            findings,
+            result["module"],
+            default_confidence="UNKNOWN",
+            default_evidence_type="UNKNOWN",
+        )
+    except FindingSchemaError as exc:
+        raise EvidenceExportError(f"invalid finding data: {exc}") from exc
 
     fingerprints = []
     raw_fingerprints = result.get("fingerprints", [])

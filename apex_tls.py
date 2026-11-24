@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
+from apex_findings import normalize_finding
+
 
 DEFAULT_TIMEOUT = 8.0
 MAX_TIMEOUT = 20.0
@@ -57,13 +59,19 @@ def _name_parts(value: Any) -> str:
 
 
 def _finding(check: str, severity: str, status: str, evidence: str, recommendation: str) -> dict:
-    return {
-        "check": check,
-        "severity": severity,
-        "status": status,
-        "evidence": evidence,
-        "recommendation": recommendation,
-    }
+    """Create a common-schema finding from a verified TLS-session observation."""
+    return normalize_finding(
+        {
+            "check": check,
+            "severity": severity,
+            "status": status,
+            "evidence": evidence,
+            "recommendation": recommendation,
+        },
+        "TLS Security Assessment",
+        default_confidence="HIGH",
+        default_evidence_type="OBSERVATION",
+    )
 
 
 def assess_tls(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:

@@ -76,6 +76,11 @@ class TLSAssessmentTests(unittest.TestCase):
         self.assertEqual(connect.call_args.args, (("example.com", 443),))
         self.assertTrue(make_context.return_value.check_hostname)
         self.assertEqual(make_context.return_value.verify_mode, ssl.CERT_REQUIRED)
+        finding = result["findings"][0]
+        self.assertEqual(finding["module"], "TLS Security Assessment")
+        self.assertEqual(finding["confidence"], "HIGH")
+        self.assertEqual(finding["evidence_type"], "OBSERVATION")
+        self.assertTrue(finding["finding_id"].startswith("ARF-"))
 
     @patch("apex_tls.socket.create_connection")
     @patch("apex_tls.ssl.create_default_context")
