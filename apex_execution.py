@@ -197,12 +197,12 @@ def _verify_bytes(data: bytes) -> dict:
 
     if finalized:
         execution_status = finalized
-    elif any(value == "STARTED" for value in states.values()):
+    elif states and all(value == "NOT_STARTED" for value in states.values()):
+        execution_status = "READY"
+    elif any(value in {"STARTED", "NOT_STARTED"} for value in states.values()):
         execution_status = "INCOMPLETE"
-    elif states and all(value != "NOT_STARTED" for value in states.values()):
-        execution_status = "AWAITING_FINALIZATION"
     else:
-        execution_status = "IN_PROGRESS"
+        execution_status = "AWAITING_FINALIZATION"
     return {
         "valid": True, "events": len(lines), "execution_id": execution_id,
         "selected_modules": selected, "module_states": states,
