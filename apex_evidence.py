@@ -62,7 +62,7 @@ def _safe_url(value: Any) -> str:
         return urlunsplit((parsed.scheme.lower(), safe_netloc, parsed.path, "", ""))
     except ValueError:
         # Fail closed for malformed URL syntax: never retain query/fragment data.
-        return raw.split("#", 1)[0].split("?", 1)[0]
+        return "[REDACTED_INVALID_URL]"
 
 
 
