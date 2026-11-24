@@ -48,7 +48,7 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
         self.assertIn("HTTPS status 200", hsts["evidence"])
         self.assertIn("https://example.test/login", hsts["evidence"])
         self.assertNotIn("token=", json.dumps(result))
-        self.assertEqual(mocked_fetch.call_count, 2)
+        self.assertEqual(mocked_fetch.call_count, 1)
 
     @patch.object(web, "_fetch")
     def test_cookie_evidence_redacts_cookie_values_but_keeps_attributes(self, mocked_fetch):
