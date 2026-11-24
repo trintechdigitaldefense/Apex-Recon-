@@ -1202,6 +1202,10 @@ def evidence_signing_module():
         create_audit_backup, verify_audit_backup, restore_audit_backup,
         AuditBackupError,
     )
+    from apex_audit_backup_signing import (
+        sign_audit_backup_checkpoint, verify_signed_audit_backup,
+        AuditBackupSignatureError,
+    )
     from apex_signing import (
         generate_ed25519_keypair, sign_engagement_record,
         verify_engagement_signature, export_signature_envelope,
@@ -1230,6 +1234,8 @@ def evidence_signing_module():
     print("  [5] Export audit backup and detached checkpoint")
     print("  [6] Verify audit backup and checkpoint")
     print("  [7] Restore audit backup to a new file")
+    print("  [8] Sign audit backup checkpoint")
+    print("  [9] Verify signed audit backup")
     print("  [0] Return to main menu")
     action = input("Select: ").strip()
 
@@ -1331,6 +1337,39 @@ def evidence_signing_module():
             result = restore_audit_backup(backup_path, checkpoint_path, destination)
             print(f"{GREEN}[+] Audit trail restored and verified: {result['restored_path']}{RESET}")
             print(f"Events: {result['entries']} | Chain head: {result['head_hash']}")
+        elif action == "8":
+            backup_path = input("Audit backup path: ").strip()
+            checkpoint_path = input("Detached checkpoint path: ").strip()
+            private_path = input("Encrypted Ed25519 private-key path: ").strip()
+            signature_path = input("Signature output path [apexrecon_audit_checkpoint.sig.json]: ").strip()
+            if not all((backup_path, checkpoint_path, private_path)):
+                print(f"{YELLOW}[!] Backup, checkpoint and private-key paths are required.{RESET}")
+                return
+            signature_path = signature_path or "apexrecon_audit_checkpoint.sig.json"
+            password = getpass("Private-key passphrase: ")
+            result = sign_audit_backup_checkpoint(
+                backup_path, checkpoint_path, private_path, password, signature_path
+            )
+            print(f"{GREEN}[+] Signed checkpoint saved: {result['signature_path']}{RESET}")
+            print(f"Public-key SHA-256 fingerprint: {result['public_key_sha256']}")
+            print(f"Backup SHA-256: {result['backup_sha256']}")
+            print(f"{YELLOW}[!] Preserve the public key and verify its fingerprint through a separate trusted channel.{RESET}")
+        elif action == "9":
+            backup_path = input("Audit backup path: ").strip()
+            checkpoint_path = input("Detached checkpoint path: ").strip()
+            signature_path = input("Detached signature path: ").strip()
+            public_path = input("Trusted Ed25519 public-key path: ").strip()
+            fingerprint = input("Independently trusted public-key SHA-256 fingerprint: ").strip()
+            if not all((backup_path, checkpoint_path, signature_path, public_path, fingerprint)):
+                print(f"{YELLOW}[!] All paths and the independently trusted fingerprint are required.{RESET}")
+                return
+            result = verify_signed_audit_backup(
+                backup_path, checkpoint_path, signature_path, public_path, fingerprint
+            )
+            print(f"{GREEN}[+] SIGNED AUDIT BACKUP VALID: {result['entries']} event(s) verified.{RESET}")
+            print(f"Public-key fingerprint: {result['public_key_sha256']}")
+            print(f"Signed at (untrusted local time): {result['signed_at']}")
+            print(f"Backup SHA-256: {result['backup_sha256']}")
         elif action == "0":
             return
         else:
