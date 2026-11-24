@@ -82,7 +82,7 @@ class AuditBackupSigningTests(unittest.TestCase):
         checkpoint = json.loads(self.checkpoint.read_text(encoding="utf-8"))
         checkpoint["audit_entries"] = 900
         self.checkpoint.write_text(
-            json.dumps(checkpoint, sort_keys=True, separators=(",", ":")) + "\\n",
+            json.dumps(checkpoint, sort_keys=True, separators=(",", ":")) + "\n",
             encoding="utf-8",
         )
         with self.assertRaises(AuditBackupSignatureError):
@@ -93,7 +93,7 @@ class AuditBackupSigningTests(unittest.TestCase):
         envelope = json.loads(self.signature.read_text(encoding="utf-8"))
         envelope["signed_at"] = "2026-01-01T00:00:00Z"
         self.signature.write_text(
-            json.dumps(envelope, sort_keys=True, separators=(",", ":")) + "\\n",
+            json.dumps(envelope, sort_keys=True, separators=(",", ":")) + "\n",
             encoding="utf-8",
         )
         with self.assertRaises(AuditBackupSignatureError):
