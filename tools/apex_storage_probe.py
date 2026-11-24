@@ -98,9 +98,8 @@ def probe(parent: Path) -> dict:
             result["private_file_mode_0600"]["supported"] = False
             result["private_file_mode_0600"]["error"] = "Atomic publisher did not complete"
 
-        # Confirm this probe created only its own temporary directory. The
-        # TemporaryDirectory context removes it on normal completion.
-        result["temporary_artifacts_removed"] = not root.exists()
+    # TemporaryDirectory has now exited; confirm its private workspace is gone.
+    result["temporary_artifacts_removed"] = not root.exists()
 
     try:
         result["free_bytes_after"] = (
