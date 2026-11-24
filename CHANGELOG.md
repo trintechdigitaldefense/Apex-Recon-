@@ -1,3 +1,12 @@
+## [2.0.1-dev] — Phase 2R HTTP redirect scope hardening
+
+### Security hardening
+- Reject redirect URLs with embedded username/password credentials, fragments, malformed ports or missing/invalid hostnames.
+- Normalize redirect hostnames for safe same-host comparison and explicitly enforce standard HTTP/HTTPS ports.
+- Preserve the exact-path, query-free HTTP-to-HTTPS-only redirect rule and the two-request assessment bound.
+- Added offline regression tests for credential-bearing redirects, malformed ports and fragments.
+- No new requests, probes, target scope or background activity.
+
 ## [2.0.1-dev] — Phase 2Q signed audit backup checkpoints
 
 ### Added
