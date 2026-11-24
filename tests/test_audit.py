@@ -67,7 +67,17 @@ class AuditTrailTests(unittest.TestCase):
             unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
             allow_nan=False,
         ).encode()).hexdigest()
-        self.path.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        self.path.write_text(json.dumps(
+            entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ) + "\n", encoding="utf-8")
+        self.assertFalse(verify_audit_trail(self.path)["valid"])
+
+    def test_incomplete_final_event_is_rejected(self):
+        append_audit_event(
+            self.path, "SIGNATURE_VERIFIED", self.engagement_id,
+            "SUCCESS", self.fingerprint,
+        )
+        self.path.write_bytes(self.path.read_bytes().rstrip(b"\\n"))
         self.assertFalse(verify_audit_trail(self.path)["valid"])
 
     def test_invalid_event_inputs_rejected(self):
