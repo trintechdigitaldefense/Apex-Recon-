@@ -31,7 +31,7 @@ A separate standard-library engine in `apex_web.py` performs up to two read-only
 - Secure, HttpOnly and SameSite attributes on observed cookies
 - Server and X-Powered-By disclosure
 
-Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Neither module crawls, fuzzes, submits forms, authenticates, exploits, or performs background monitoring. CMS identification remains a later milestone. The HTTP and TLS changes remain stacked development drafts until reviewed and validated.
+Phase 2A provides the bounded HTTP engine and Phase 2B integrates it as menu option 3 with a dedicated HTML report. Phase 2C adds menu option 4 for one verified TLS handshake on TCP/443, certificate expiry/identity observations, and negotiated protocol/cipher reporting. Phase 2D extends menu option 3 with passive CMS and frontend technology fingerprints from response headers and at most 16 KiB of HTML across the existing two-request limit. Fingerprints include evidence markers and confidence; versions are reported only from an explicit numeric CMS generator tag. No extra paths or requests are introduced. The modules do not crawl, fuzz, submit forms, authenticate, exploit, or perform background monitoring. The HTTP, TLS and fingerprinting changes remain stacked development drafts until reviewed and validated.
 
 See [Phase 2 HTTP assessment scope and limitations](docs/PHASE2_HTTP_ASSESSMENT.md).
 
@@ -74,10 +74,10 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 
 ## Current limitations
 
-- The v2.1 web assessment engine is being reconstructed in stages; HTTP headers and a single verified TLS handshake are implemented in separate development milestones.
-- The HTTP and TLS CLI/report work is in stacked draft PRs and has not been merged or phone-validated.
+- The v2.1 web assessment engine is being reconstructed in stages; HTTP headers, a single verified TLS handshake, and bounded passive CMS/technology fingerprinting are implemented in separate development milestones.
+- The HTTP, TLS and fingerprinting CLI/report work is in stacked draft PRs; Phase 2C has passed local phone validation, while Phase 2D still requires CI and phone validation.
 - TLS assessment is a one-handshake observation only; it does not enumerate all server-supported protocol versions or ciphers.
-- CMS fingerprinting and technology identification are not included yet.
+- CMS and frontend technology fingerprinting is heuristic and limited to markers in the bounded HTML sample and response headers; it is not a complete software inventory.
 - Native PDF export is not implemented; the current recovered report is HTML.
 - Legacy SMB vulnerability checks are indicators and require independent verification.
 - No multi-tenant service, scheduling, continuous monitoring, or unattended 24-hour operation is provided.
@@ -91,3 +91,5 @@ No recurring scans, background agents, unattended monitoring, or 24-hour operati
 No merge, production release, or client deployment is authorized by this development branch.
 
 - [Phase 2C verified TLS assessment scope](docs/PHASE2C_TLS_ASSESSMENT.md)
+
+- [Phase 2D passive CMS and technology fingerprinting](docs/PHASE2D_CMS_TECHNOLOGY_FINGERPRINTING.md)
