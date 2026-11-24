@@ -11,6 +11,7 @@ MODULE_NAMES = (
     "TLS Security Assessment",
 )
 VALID_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "NOT_RUN"}
+MAX_FINDINGS = 2000
 
 
 def parse_module_selection(value):
@@ -76,6 +77,8 @@ def _validate_outcome(name, outcome):
     findings = outcome.get("findings", [])
     if not isinstance(findings, list):
         raise ValueError("findings must be a list")
+    if len(findings) > MAX_FINDINGS:
+        raise ValueError("module exceeds the engagement finding limit")
     if status == "NOT_RUN" and findings:
         raise ValueError("NOT_RUN module cannot contain findings")
     if not _valid_scope(outcome.get("target_scope")):
@@ -149,6 +152,7 @@ def assemble_module_results(selected, outcomes):
     if not isinstance(outcomes, dict):
         raise ValueError("outcomes must be a mapping")
     entries = []
+    total_findings = 0
     for name in MODULE_NAMES:
         if name not in selected:
             entries.append({
@@ -168,9 +172,13 @@ def assemble_module_results(selected, outcomes):
             })
             continue
         try:
-            entries.append(_validate_outcome(name, outcome))
+            validated = _validate_outcome(name, outcome)
+            if total_findings + len(validated["findings"]) > MAX_FINDINGS:
+                raise ValueError("combined engagement exceeds the finding limit")
+            total_findings += len(validated["findings"])
+            entries.append(validated)
         except (TypeError, ValueError, OverflowError):
             entries.append(_failure_entry(
-                name, "Module output failed engagement validation and was excluded from findings; inspect the operator log."
+                name, "Module output failed engagement validation or exceeded the engagement finding limit; inspect the operator log."
             ))
     return entries
