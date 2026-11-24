@@ -8,6 +8,7 @@ on:
       - r1-phase1-validation
       - phase2-http-assessment
       - phase2b-http-cli-report
+      - phase2c-tls-assessment
   pull_request:
     branches:
       - main
@@ -35,7 +36,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile source and tests
-        run: python -m compileall -q apex_recon_v2.py apex_web.py tests
+        run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
@@ -55,4 +56,4 @@ jobs:
           sudo apt-get install -y nmap whois dnsutils curl
       - name: Verify dependency detection and safe startup imports
         run: |
-          python -c "import apex_recon_v2 as apex; import apex_web; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"
+          python -c "import apex_recon_v2 as apex; import apex_web; import apex_tls; assert apex.check_deps(), 'runtime dependencies missing'; assert apex.validate_osint_target('example.com'); assert apex.validate_network_target('192.0.2.0/24'); assert apex_web.normalize_target_url('example.com').scheme == 'https'"
