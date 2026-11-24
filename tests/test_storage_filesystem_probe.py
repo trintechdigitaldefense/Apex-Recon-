@@ -89,6 +89,19 @@ class StorageFilesystemProbeTests(unittest.TestCase):
             self.assertTrue(report["temporary_artifacts_removed"])
             self.assertEqual(list(Path(parent).iterdir()), [])
 
+    def test_insecure_private_file_mode_fails_overall_compatibility(self):
+        with tempfile.TemporaryDirectory(prefix="apexrecon-probe-mode-") as parent:
+            with mock.patch(
+                "tools.apex_storage_probe.stat.S_IMODE", return_value=0o644
+            ):
+                report = apex_storage_probe.probe(Path(parent))
+
+            self.assertFalse(report["private_file_mode_0600"]["supported"])
+            self.assertEqual(report["private_file_mode_0600"]["observed_mode"], "0o644")
+            self.assertFalse(report["overall_atomic_storage_compatible"])
+            self.assertTrue(report["temporary_artifacts_removed"])
+            self.assertEqual(list(Path(parent).iterdir()), [])
+
     def test_probe_rejects_nonexistent_parent_without_creating_it(self):
         with tempfile.TemporaryDirectory(prefix="apexrecon-probe-parent-") as parent:
             missing = Path(parent) / "does-not-exist"
