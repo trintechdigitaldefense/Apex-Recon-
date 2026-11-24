@@ -77,7 +77,7 @@ python3 apex_recon_v2.py
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py tests
+python3 -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py apex_findings.py apex_finding_adapters.py apex_engagement.py apex_engagement_cli.py apex_signing.py apex_audit.py tests
 ```
 
 The test suite uses synthetic Nmap output, synthetic HTTP headers, and mocked network calls. It does not contact real targets.
@@ -133,3 +133,6 @@ Phase 2M verifies engagement structure and internal count consistency in additio
 
 ### Milestone 2N: cryptographic evidence signing and verification (draft PR)
 Phase 2N adds optional detached Ed25519 signatures for verified engagement JSON records. Operators can generate encrypted private/public key pairs, sign an existing engagement export, and verify signatures offline from the main menu. Private keys are encrypted and owner-only; public-key fingerprints must be trusted out of band. Signatures cover the canonical JSON record, not the PDF bytes, and do not prove assessment accuracy or authorization. See [Phase 2N cryptographic evidence signing](docs/PHASE2N_CRYPTOGRAPHIC_EVIDENCE_SIGNING.md).
+
+### Milestone 2O: evidence verification workflow and audit trail (draft PR)
+Phase 2O records key-pair creation, engagement signing and signature verification outcomes in a local JSONL audit trail. Events are hash-chained, sequentially numbered, timezone-aware and written with owner-only permissions on POSIX systems. The CLI can verify the complete chain and refuses to extend a damaged trail. This is tamper-evident local logging, not immutable storage; preserve chain-head checkpoints independently for stronger assurance. No scan behavior or target interaction changes. See [Phase 2O evidence verification and audit trail](docs/PHASE2O_EVIDENCE_VERIFICATION_AUDIT_TRAIL.md).

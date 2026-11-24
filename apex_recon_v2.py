@@ -1193,20 +1193,36 @@ def unified_engagement_module():
 # DETACHED EVIDENCE SIGNING AND VERIFICATION
 # ─────────────────────────────────────────────
 def evidence_signing_module():
-    """Generate signing keys, sign exported engagements, or verify signatures."""
+    """Generate keys, sign/verify engagements, and inspect the local audit trail."""
     import json
     from getpass import getpass
     from pathlib import Path
+    from apex_audit import append_audit_event, verify_audit_trail, AuditTrailError
     from apex_signing import (
         generate_ed25519_keypair, sign_engagement_record,
         verify_engagement_signature, export_signature_envelope,
     )
+
+    audit_path = Path("apexrecon_audit.jsonl")
+
+    def record_audit(event_type, engagement_id, result, fingerprint=None):
+        try:
+            append_audit_event(
+                audit_path, event_type, engagement_id, result, fingerprint
+            )
+            return True
+        except AuditTrailError as exc:
+            print(f"{YELLOW}[!] Audit trail update failed: {exc}{RESET}")
+            print(f"{YELLOW}[!] The cryptographic operation result is unchanged; preserve this warning in the operator notes.{RESET}")
+            log("Evidence audit append failed: " + type(exc).__name__)
+            return False
 
     print_banner()
     print(f"{RED}[*] Evidence Signing and Verification{RESET}")
     print("  [1] Generate encrypted Ed25519 key pair")
     print("  [2] Sign an existing engagement JSON")
     print("  [3] Verify a detached engagement signature")
+    print("  [4] Verify local evidence audit trail")
     print("  [0] Return to main menu")
     action = input("Select: ").strip()
 
@@ -1222,6 +1238,7 @@ def evidence_signing_module():
                 print(f"{RED}[!] Passphrases do not match. No keys generated.{RESET}")
                 return
             result = generate_ed25519_keypair(private_path, public_path, password)
+            record_audit("KEYPAIR_CREATED", None, "SUCCESS", result["public_key_sha256"])
             print(f"{GREEN}[+] Encrypted private key: {result['private_key_path']}{RESET}")
             print(f"{GREEN}[+] Public key: {result['public_key_path']}{RESET}")
             print(f"Public-key SHA-256 fingerprint: {result['public_key_sha256']}")
@@ -1239,6 +1256,10 @@ def evidence_signing_module():
             password = getpass("Private-key passphrase: ")
             envelope = sign_engagement_record(record, private_path, password)
             saved = export_signature_envelope(envelope, signature_path)
+            record_audit(
+                "ENGAGEMENT_SIGNED", record["engagement"]["id"], "SUCCESS",
+                envelope["public_key_sha256"],
+            )
             print(f"{GREEN}[+] Detached signature saved: {saved}{RESET}")
             print(f"Public-key SHA-256 fingerprint: {envelope['public_key_sha256']}")
         elif action == "3":
@@ -1250,12 +1271,28 @@ def evidence_signing_module():
                 return
             record = json.loads(Path(record_path).read_text(encoding="utf-8"))
             envelope = json.loads(Path(signature_path).read_text(encoding="utf-8"))
-            if verify_engagement_signature(record, envelope, public_path):
+            valid = verify_engagement_signature(record, envelope, public_path)
+            record_audit(
+                "SIGNATURE_VERIFIED" if valid else "SIGNATURE_REJECTED",
+                record.get("engagement", {}).get("id") if isinstance(record, dict) else None,
+                "SUCCESS" if valid else "INVALID",
+                envelope.get("public_key_sha256") if isinstance(envelope, dict) else None,
+            )
+            if valid:
                 print(f"{GREEN}[+] SIGNATURE VALID: record integrity and Ed25519 signature verified.{RESET}")
                 print(f"Engagement ID: {record['engagement']['id']}")
                 print(f"Signer key fingerprint: {envelope['public_key_sha256']}")
             else:
                 print(f"{RED}[!] SIGNATURE INVALID: do not rely on this signature.{RESET}")
+        elif action == "4":
+            result = verify_audit_trail(audit_path)
+            if result["valid"]:
+                print(f"{GREEN}[+] AUDIT TRAIL VALID: {result['entries']} event(s) verified.{RESET}")
+                print(f"Current chain head SHA-256: {result['head_hash']}")
+                print(f"Audit file: {audit_path}")
+                print(f"{YELLOW}[!] A valid local hash chain is tamper-evident, not immutable.{RESET}")
+            else:
+                print(f"{RED}[!] AUDIT TRAIL INVALID: {result['error']}{RESET}")
         elif action == "0":
             return
         else:
@@ -1264,7 +1301,6 @@ def evidence_signing_module():
         print(f"{RED}[!] Evidence signing operation failed: {type(exc).__name__}: {exc}{RESET}")
         log(f"Evidence signing operation failed: {type(exc).__name__}")
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
-
 
 # ─────────────────────────────────────────────
 # MAIN MENU
