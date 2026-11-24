@@ -40,6 +40,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install optional native PDF dependency
+        run: python -m pip install -r requirements-pdf.txt
       - name: Compile source and tests
         run: python -m compileall -q apex_recon_v2.py apex_web.py apex_tls.py apex_fingerprint.py apex_evidence.py tests
       - name: Run unit tests
