@@ -114,14 +114,8 @@ def _verify_bytes(data: bytes) -> dict:
                 raise ValueError("event JSON is not canonical")
             if entry["schema_version"] != AUDIT_SCHEMA:
                 raise ValueError("unsupported audit schema")
-            if (isinstance(entry["sequence"], bool)
-                    or not isinstance(entry["sequence"], int)
-                    or entry["sequence"] != index):
-                raise ValueError("sequence is duplicated, missing or out of order")
             if entry["event_type"] not in EVENT_TYPES or entry["result"] not in RESULTS:
                 raise ValueError("unsupported event type or result")
-            if entry["previous_hash"] != previous:
-                raise ValueError("broken hash-chain link")
             if entry["engagement_id"] is not None:
                 parsed = uuid.UUID(str(entry["engagement_id"]))
                 if str(parsed) != entry["engagement_id"]:
@@ -143,6 +137,12 @@ def _verify_bytes(data: bytes) -> dict:
                 raise ValueError("event hash mismatch")
             if claimed_hash in seen_hashes:
                 raise ValueError("duplicate audit event hash")
+            if (isinstance(entry["sequence"], bool)
+                    or not isinstance(entry["sequence"], int)
+                    or entry["sequence"] != index):
+                raise ValueError("sequence is duplicated, missing or out of order")
+            if entry["previous_hash"] != previous:
+                raise ValueError("broken hash-chain link")
             seen_hashes.add(claimed_hash)
             previous = claimed_hash
             verified_bytes += len(raw_line) + 1
