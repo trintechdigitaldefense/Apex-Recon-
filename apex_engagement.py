@@ -201,8 +201,106 @@ def build_engagement_record(
     return payload
 
 
+def _record_structure_valid(record: dict) -> bool:
+    """Check internal record consistency independently of its checksum."""
+    try:
+        engagement = record["engagement"]
+        modules = record["modules"]
+        summary = record["summary"]
+        evidence = record["evidence"]
+        if not isinstance(engagement, dict) or not isinstance(modules, list) or len(modules) != MAX_MODULES:
+            return False
+        if not isinstance(summary, dict) or not isinstance(evidence, dict):
+            return False
+        if engagement.get("module_count") != MAX_MODULES:
+            return False
+        if _safe_scope(engagement.get("target_scope")) != engagement.get("target_scope"):
+            return False
+        if _timestamp(engagement.get("generated_at"), "generated_at") != engagement.get("generated_at"):
+            return False
+
+        module_by_name = {}
+        for module in modules:
+            if not isinstance(module, dict):
+                return False
+            name = module.get("module")
+            if name not in MODULES or name in module_by_name:
+                return False
+            if module.get("status") not in MODULE_STATUSES:
+                return False
+            if _safe_scope(module.get("target_scope")) != module.get("target_scope"):
+                return False
+            if _timestamp(module.get("started_at"), "started_at") != module.get("started_at"):
+                return False
+            if _timestamp(module.get("completed_at"), "completed_at") != module.get("completed_at"):
+                return False
+            duration = module.get("duration_seconds")
+            if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 <= duration <= 86400:
+                return False
+            if not isinstance(module.get("limitations"), list):
+                return False
+            if any(not isinstance(item, str) or not item.strip() for item in module["limitations"]):
+                return False
+            count = module.get("finding_count")
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                return False
+            module_by_name[name] = module
+
+        if set(module_by_name) != MODULES:
+            return False
+        findings = evidence.get("findings")
+        if not isinstance(findings, list) or len(findings) > MAX_FINDINGS:
+            return False
+        per_module = {name: 0 for name in MODULES}
+        severity_counts = {level: 0 for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN")}
+        finding_ids = set()
+        for finding in findings:
+            if not isinstance(finding, dict):
+                return False
+            name = finding.get("module")
+            if name not in module_by_name or module_by_name[name]["status"] == "NOT_RUN":
+                return False
+            normalized = normalize_findings([finding], name)[0]
+            if normalized != finding:
+                return False
+            finding_id = finding.get("finding_id")
+            if finding_id in finding_ids:
+                return False
+            finding_ids.add(finding_id)
+            per_module[name] += 1
+            severity_counts[finding["severity"]] += 1
+
+        for name, module in module_by_name.items():
+            if module["finding_count"] != per_module[name]:
+                return False
+        expected_status_counts = {
+            status: sum(1 for module in modules if module["status"] == status)
+            for status in sorted(MODULE_STATUSES)
+        }
+        if summary.get("total_findings") != len(findings):
+            return False
+        if summary.get("finding_severity_counts") != severity_counts:
+            return False
+        if summary.get("module_status_counts") != expected_status_counts:
+            return False
+        if summary.get("risk_score") is not None:
+            return False
+        expected_status = (
+            "COMPLETED"
+            if all(module["status"] in {"COMPLETED", "NOT_RUN"} for module in modules)
+            and any(module["status"] == "COMPLETED" for module in modules)
+            else "PARTIAL"
+        )
+        return engagement.get("status") == expected_status
+    except (KeyError, TypeError, ValueError, EngagementError, FindingSchemaError):
+        return False
+
+
 def verify_engagement_record(record: Any) -> bool:
+    """Verify schema consistency and the canonical SHA-256 checksum."""
     if not isinstance(record, dict) or record.get("schema_version") != SCHEMA_VERSION:
+        return False
+    if not _record_structure_valid(record):
         return False
     integrity = record.get("integrity")
     engagement = record.get("engagement")
@@ -391,6 +489,9 @@ def generate_engagement_pdf_bytes(record: dict) -> bytes:
     SimpleDocTemplate(
         output, pagesize=landscape(A4), rightMargin=12 * mm,
         leftMargin=12 * mm, topMargin=12 * mm, bottomMargin=12 * mm,
+        title="ApexRecon Engagement " + record["engagement"]["id"],
+        author="TrinTech Digital Defense",
+        subject="SHA-256 " + record["integrity"]["engagement_sha256"],
     ).build(story)
     return output.getvalue()
 
