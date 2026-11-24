@@ -17,7 +17,7 @@ import ipaddress
 import shutil
 import math
 from html import escape as html_escape
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apex_finding_adapters import osint_result_observations, smb_host_findings
 
@@ -809,8 +809,13 @@ def osint_module(*, engagement_mode=False):
     log(f"OSINT complete for {domain}: {json.dumps(results, indent=2)}")
 
     duration = round(time.time() - started, 2)
+    osint_status = "COMPLETED" if results.get("structured_findings") else "PARTIAL"
+    osint_limitations = ["OSINT collection is best-effort; missing records are not negative security results.",
+                         "The existing GeoIP workflow sends the resolved target IP to ipinfo.io."]
+    if osint_status == "PARTIAL":
+        osint_limitations.append("No structured OSINT observations were collected during this run.")
     module_result = _engagement_module_result(
-        "External Footprinting (OSINT)", "COMPLETED", {"target": domain},
+        "External Footprinting (OSINT)", osint_status, {"target": domain},
         results.get("structured_findings", []), duration,
         ["OSINT collection is best-effort; missing records are not negative security results.",
          "The existing GeoIP workflow sends the resolved target IP to ipinfo.io."])
@@ -933,12 +938,20 @@ def smb_auditor_module(*, engagement_mode=False):
 
 def _engagement_module_result(module, status, target_scope, findings, duration, limitations=None):
     """Return a bounded result object for the offline engagement packager."""
+    seconds = float(duration or 0)
+    if not math.isfinite(seconds) or seconds < 0:
+        seconds = 0.0
+    seconds = min(seconds, 86400.0)
+    completed_at = datetime.now().astimezone()
+    started_at = completed_at - timedelta(seconds=seconds)
     return {
         "module": module,
         "status": status,
         "target_scope": target_scope,
         "findings": list(findings or []),
-        "duration_seconds": max(0.0, min(float(duration or 0), 86400.0)),
+        "duration_seconds": round(seconds, 3),
+        "started_at": started_at.isoformat(timespec="seconds"),
+        "completed_at": completed_at.isoformat(timespec="seconds"),
         "limitations": list(limitations or []),
     }
 
@@ -1026,8 +1039,11 @@ def http_assessment_module(*, engagement_mode=False):
     log("HTTP assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] HTTP assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Findings are configuration observations, not proof of exploitable vulnerabilities.{RESET}")
+    http_ok = result.get("http_final_scheme") is not None
+    https_ok = result.get("https_status") is not None
+    http_status = "COMPLETED" if http_ok and https_ok else ("PARTIAL" if http_ok or https_ok else "FAILED")
     module_result = _engagement_module_result(
-        "HTTP Security Assessment", "COMPLETED", {"url": scoped_target},
+        "HTTP Security Assessment", http_status, {"url": scoped_target},
         result.get("findings", []), duration,
         ["HTTP checks are bounded configuration observations, not proof of exploitability."])
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
@@ -1098,8 +1114,9 @@ def tls_assessment_module(*, engagement_mode=False):
     log("TLS assessment completed: " + json.dumps(summary, sort_keys=True))
     print(f"\n{GREEN}[+] TLS assessment report saved: {BOLD}{report_path}{RESET}")
     print(f"{GREY}[i] Negotiated protocol/cipher observations do not enumerate all server capabilities.{RESET}")
+    tls_status = "COMPLETED" if result.get("status") == "VERIFIED" else "FAILED"
     module_result = _engagement_module_result(
-        "TLS Security Assessment", "COMPLETED", {"host": host, "port": 443},
+        "TLS Security Assessment", tls_status, {"host": host, "port": 443},
         result.get("findings", []), duration,
         ["TLS reports one certificate-verified handshake; it does not enumerate all supported protocols or ciphers."])
     input(f"\n{GREY}Press Enter to return to main menu...{RESET}")
@@ -1140,7 +1157,14 @@ def unified_engagement_module():
         if name not in selected:
             continue
         print(f"\n{CYAN}[+] Starting {name}. Its existing target and authorization prompts still apply.{RESET}")
-        outcomes[name] = runners[name](engagement_mode=True)
+        try:
+            outcomes[name] = runners[name](engagement_mode=True)
+        except Exception as exc:
+            print(f"{YELLOW}[!] {name} stopped unexpectedly: {type(exc).__name__}. Continuing with remaining selected modules.{RESET}")
+            log(f"Unified engagement module failure: {name}: {type(exc).__name__}")
+            outcomes[name] = _engagement_module_result(
+                name, "FAILED", {"module": name, "scope": "not fully captured"}, [], 0,
+                [f"Module stopped unexpectedly ({type(exc).__name__}); review the operator log."])
     try:
         module_results = assemble_module_results(selected, outcomes)
         record = build_engagement_record({"engagement_name": engagement_name}, module_results)
