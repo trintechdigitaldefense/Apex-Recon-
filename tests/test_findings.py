@@ -31,6 +31,10 @@ class FindingNormalizationTests(unittest.TestCase):
         self.assertEqual(finding["evidence_type"], "OBSERVATION")
         self.assertEqual(finding["module"], "HTTP Security Assessment")
         self.assertTrue(finding["finding_id"].startswith("ARF-"))
+        self.assertEqual(finding["severity_basis"], "MODULE_ASSIGNED")
+        self.assertEqual(finding["review_priority"], "P2")
+        self.assertEqual(finding["recommendation_status"], "PRESENT")
+        self.assertIn("not a composite risk score", finding["review_priority_note"])
 
     def test_finding_id_is_stable_for_same_observation(self):
         first = normalize_finding(self.sample(), "HTTP Security Assessment")
@@ -57,6 +61,22 @@ class FindingNormalizationTests(unittest.TestCase):
         finding = normalize_finding(raw, "Test Module")
         self.assertEqual(finding["severity"], "UNKNOWN")
         self.assertEqual(finding["confidence"], "UNKNOWN")
+        self.assertEqual(finding["severity_basis"], "UNASSESSED")
+        self.assertEqual(finding["review_priority"], "UNRANKED")
+
+    def test_review_priority_tracks_severity_without_promoting_unknown(self):
+        expected = {"CRITICAL": "P1", "HIGH": "P1", "MEDIUM": "P2", "LOW": "P3", "INFO": "INFO"}
+        for severity, priority in expected.items():
+            raw = self.sample()
+            raw["severity"] = severity
+            self.assertEqual(normalize_finding(raw, "Test Module")["review_priority"], priority)
+
+    def test_missing_recommendation_is_explicit(self):
+        raw = self.sample()
+        raw["recommendation"] = ""
+        finding = normalize_finding(raw, "Test Module")
+        self.assertEqual(finding["recommendation_status"], "MISSING")
+        self.assertEqual(finding["recommendation"], "")
 
     def test_bounds_untrusted_text(self):
         raw = self.sample()
