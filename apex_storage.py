@@ -39,7 +39,7 @@ def write_exclusive_atomic(
         dir=str(parent),
     )
     temporary_path = Path(temporary_name)
-    published = False
+    published_info = None
     try:
         if os.name == "posix":
             os.fchmod(fd, mode)
@@ -52,7 +52,7 @@ def write_exclusive_atomic(
         # Same-directory hard-link publication is atomic and create-only.
         # An existing file or symlink is never overwritten.
         os.link(temporary_path, destination)
-        published = True
+        published_info = temporary_path.stat()
         temporary_path.unlink()
 
         # Persist the directory entry where the platform supports directory
@@ -72,11 +72,10 @@ def write_exclusive_atomic(
             os.close(fd)
         # If publication succeeded but directory sync failed, remove only the
         # exact inode we published; never unlink a path another process swapped.
-        if published:
+        if published_info is not None:
             try:
-                staged_info = temporary_path.stat()
                 destination_info = destination.stat()
-                if (staged_info.st_dev, staged_info.st_ino) == (
+                if (published_info.st_dev, published_info.st_ino) == (
                     destination_info.st_dev, destination_info.st_ino
                 ):
                     destination.unlink()
