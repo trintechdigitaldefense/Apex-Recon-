@@ -141,15 +141,6 @@ def probe(parent: Path) -> dict:
             result["atomic_publication"]["content_verified"] = (
                 artifact.read_bytes() == payload
             )
-            leftovers = sorted(item.name for item in atomic_dir.iterdir())
-            result["atomic_publication"]["cleanup_supported"] = (
-                leftovers == [artifact.name]
-            )
-            if result["atomic_publication"]["cleanup_supported"] is False:
-                result["atomic_publication"]["error"] = (
-                    "atomic publisher left unexpected entries: "
-                    + ", ".join(name for name in leftovers if name != artifact.name)[:300]
-                )
             if os.name == "posix":
                 observed = stat.S_IMODE(artifact.stat().st_mode)
                 result["private_file_mode_0600"]["observed_mode"] = oct(observed)
@@ -158,6 +149,18 @@ def probe(parent: Path) -> dict:
                 result["private_file_mode_0600"]["supported"] = None
                 result["private_file_mode_0600"]["error"] = (
                     "POSIX permission bits are not evaluated on this platform"
+                )
+
+            # Some compatibility filesystems expose helper sidecars while a
+            # hard-linked inode is still published. They disappear with the
+            # final link, so judge cleanup only after removing our own artifact.
+            artifact.unlink()
+            leftovers = sorted(item.name for item in atomic_dir.iterdir())
+            result["atomic_publication"]["cleanup_supported"] = not leftovers
+            if leftovers:
+                result["atomic_publication"]["error"] = (
+                    "entries remained after published artifact removal: "
+                    + ", ".join(leftovers[:8])[:300]
                 )
         except (OSError, TypeError, ValueError) as exc:
             result["atomic_publication"]["supported"] = False
