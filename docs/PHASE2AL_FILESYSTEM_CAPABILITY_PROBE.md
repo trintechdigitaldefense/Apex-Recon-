@@ -19,7 +19,7 @@ To test another existing directory or mounted filesystem, pass that directory as
 python3 tools/apex_storage_probe.py --parent /path/to/existing/test-directory
 ```
 
-The probe never creates the parent directory. It creates and removes only a uniquely named `.apexrecon-fs-probe-*` temporary child directory. Do not point it at a directory containing sensitive evidence if a disposable test directory is available.
+The probe never creates the parent directory. It creates and removes only a uniquely named `.apexrecon-fs-probe-*` temporary child directory. Do not point it at a directory containing sensitive evidence if a disposable test directory is available. The script can be invoked directly by path from the repository root; it resolves the repository root for its local `apex_storage` import.
 
 ## Report fields
 
