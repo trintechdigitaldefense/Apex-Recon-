@@ -21,6 +21,7 @@ on:
       - phase2m-evidence-integrity-verification
       - phase2n-cryptographic-evidence-signing
       - phase2o-evidence-audit-trail
+      - phase2p-audit-backup-recovery
   pull_request:
     branches:
       - main
