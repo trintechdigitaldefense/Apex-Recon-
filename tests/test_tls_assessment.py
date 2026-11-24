@@ -133,6 +133,7 @@ class TLSAssessmentTests(unittest.TestCase):
         import tempfile
         result = {
             "module": "TLS Security Assessment", "target": "<script>bad</script>",
+            "assessment_id": "tls-assessment-456",
             "status": "VERIFIED", "verified": True, "protocol": "TLSv1.3",
             "cipher": {"name": "TEST"},
             "certificate": {"subject": "<img src=x>", "issuer": "Test CA"},
@@ -149,6 +150,7 @@ class TLSAssessmentTests(unittest.TestCase):
                 self.assertNotIn("<script>", content)
                 self.assertNotIn("<img src=x>", content)
                 self.assertNotIn("<svg onload", content)
+                self.assertIn("tls-assessment-456", content)
                 self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
             finally:
                 os.chdir(old)
