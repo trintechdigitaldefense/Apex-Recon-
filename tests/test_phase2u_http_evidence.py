@@ -141,7 +141,7 @@ class Phase2UResponseEvidenceTests(unittest.TestCase):
             self.skipTest("ReportLab is not installed in this environment")
         self.assertTrue(pdf.startswith(b"%PDF-"))
         self.assertGreater(len(pdf), 1000)
-        streams = re.findall(rb"stream\\r?\\n(.*?)\\r?\\nendstream", pdf, re.S)
+        streams = re.findall(rb"stream\r?\n(.*?)\r?\nendstream", pdf, re.S)
         decoded = []
         for stream in streams:
             try:
