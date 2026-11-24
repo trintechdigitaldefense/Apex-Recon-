@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import apex_evidence as evidence
 
@@ -80,6 +81,43 @@ class EvidenceExportTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             with self.assertRaises(FileExistsError):
                 evidence.export_json(record, tmp)
+
+    def test_checksum_verification_detects_tampering(self):
+        record = evidence.build_evidence_record(
+            self.sample(), 1, assessment_id="44444444-4444-4444-8444-444444444444"
+        )
+        self.assertTrue(evidence.verify_evidence_record(record))
+        changed = json.loads(json.dumps(record))
+        changed["evidence"]["findings"][0]["severity"] = "LOW"
+        self.assertFalse(evidence.verify_evidence_record(changed))
+        with self.assertRaises(evidence.EvidenceExportError):
+            evidence.export_json(changed)
+
+    def test_url_sanitization_removes_credentials_queries_and_fragments(self):
+        self.assertEqual(
+            evidence._safe_url("https://user:secret@example.test:8443/a?token=hidden#section"),
+            "https://example.test:8443/a",
+        )
+        self.assertEqual(
+            evidence._safe_url("/health?api_key=hidden#fragment"),
+            "/health",
+        )
+        self.assertEqual(
+            evidence._safe_url("https://[2001:db8::1]:443/status?secret=x"),
+            "https://[2001:db8::1]:443/status",
+        )
+
+    def test_invalid_assessment_uuid_is_rejected(self):
+        with self.assertRaises(evidence.EvidenceExportError):
+            evidence.build_evidence_record(self.sample(), 1, assessment_id="not-a-uuid")
+
+    @patch("apex_evidence.export_pdf", side_effect=OSError("simulated PDF storage failure"))
+    def test_pdf_failure_preserves_json_artifact(self, _mock_pdf):
+        with tempfile.TemporaryDirectory() as tmp:
+            artifacts = evidence.export_artifacts(self.sample(), 1, tmp)
+            self.assertTrue(Path(artifacts["json_path"]).is_file())
+            self.assertIsNone(artifacts["pdf_path"])
+            self.assertIn("simulated PDF storage failure", artifacts["pdf_error"])
 
     def test_pdf_generation_or_clear_optional_dependency_error(self):
         record = evidence.build_evidence_record(self.sample(), 0.25)
