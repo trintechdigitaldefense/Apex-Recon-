@@ -18,6 +18,7 @@ on:
       - phase2j-unified-cli-engagement
       - phase2k-engagement-reliability
       - phase2l-engagement-report-quality
+      - phase2m-evidence-integrity-verification
   pull_request:
     branches:
       - main
@@ -34,6 +35,8 @@ on:
       - phase2i-unified-engagement-reporting
       - phase2j-unified-cli-engagement
       - phase2k-engagement-reliability
+      - phase2l-engagement-report-quality
+      - phase2m-evidence-integrity-verification
 
 permissions:
   contents: read

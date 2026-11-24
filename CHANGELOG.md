@@ -1,3 +1,19 @@
+## [2.0.1-dev] — Phase 2M assessment evidence integrity and report verification
+
+### Added
+- Added structural verification of the four-module engagement record, module states, scopes, timestamps, durations and limitations.
+- Recomputed module finding counts, total findings, severity counts, module status counts and overall engagement status during verification.
+- Rejected malformed findings, mismatched module ownership, duplicate finding IDs and findings attributed to NOT_RUN modules, even when the stored checksum is recomputed.
+- Added PDF title, author and subject metadata containing the engagement UUID and canonical JSON SHA-256 for artifact correlation.
+- Added offline regression tests for inconsistent summaries, finding counts, duplicate findings, incomplete module sets and PDF metadata.
+
+### Boundaries
+- SHA-256 remains an unkeyed checksum, not a digital signature or proof of source authenticity.
+- PDF metadata correlates the PDF with the JSON record but does not checksum or sign PDF bytes.
+- No assessment probes, network behavior, authorization prompts or target scope changed.
+- Synthetic offline tests only; no live targets contacted.
+- Draft development only; no merge, release, deployment or client-readiness claim.
+
 ## [2.0.1-dev] — Phase 2L unified engagement report quality
 
 ### Added
