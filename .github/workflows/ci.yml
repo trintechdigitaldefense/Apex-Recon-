@@ -40,6 +40,7 @@ on:
   pull_request:
     branches:
       - main
+      - phase2ae-recovery-evidence-consistency
       - r1-source-recovery-stabilization
       - r1-phase1-validation
       - phase2-http-assessment
