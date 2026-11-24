@@ -45,6 +45,7 @@ on:
       - phase2ak-process-crash-recovery-tests
       - phase2al-filesystem-capability-probe
       - phase2am-controlled-power-loss-validation
+      - phase2an-termux-filesystem-probe-compatibility
   pull_request:
     branches:
       - main
@@ -83,6 +84,8 @@ on:
       - phase2ad-assessment-execution-recovery
       - phase2ae-recovery-evidence-consistency
       - phase2af-audit-integrity-diagnostics
+      - phase2w-assessment-accuracy-fp-reduction
+      - phase2an-termux-filesystem-probe-compatibility
 
 permissions:
   contents: read
