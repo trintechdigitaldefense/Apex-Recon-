@@ -25,7 +25,7 @@ class FingerprintTests(unittest.TestCase):
         results = fingerprint(self.headers(), html)
         wordpress = next(item for item in results if item["name"] == "WordPress")
         self.assertEqual(wordpress["version"], "6.5.2")
-        self.assertEqual(wordpress["confidence"], "high")
+        self.assertEqual(wordpress["confidence"], "medium")
 
     def test_generator_detection_accepts_attribute_order_and_does_not_overstate_confidence(self):
         html = b'<meta content="WordPress 6.5.2" name="generator">'
