@@ -384,6 +384,30 @@ def load_completed_module_artifacts(path: str | os.PathLike[str]) -> dict:
     }
 
 
+def _inspect_unreferenced_module_artifact(journal_path: Path, module: str) -> dict:
+    """Inspect only the expected sidecar path without opening or following it."""
+    try:
+        module_index = MODULES.index(module) + 1
+    except ValueError:
+        return {"status": "INSPECTION_ERROR", "file": None, "error": "unknown_module"}
+    artifact_name = f"{journal_path.stem}_module_{module_index}.json"
+    artifact_path = journal_path.parent / artifact_name
+    try:
+        metadata = os.lstat(artifact_path)
+    except FileNotFoundError:
+        return {"status": "ABSENT", "file": artifact_name, "kind": None}
+    except OSError as exc:
+        return {"status": "INSPECTION_ERROR", "file": artifact_name, "error": type(exc).__name__}
+    if stat.S_ISLNK(metadata.st_mode):
+        kind = "SYMLINK"
+    elif stat.S_ISREG(metadata.st_mode):
+        kind = "REGULAR_FILE"
+    elif stat.S_ISDIR(metadata.st_mode):
+        kind = "DIRECTORY"
+    else:
+        kind = "OTHER"
+    return {"status": "PRESENT", "file": artifact_name, "kind": kind}
+
 def inspect_execution_recovery(path: str | os.PathLike[str]) -> dict:
     """Build a read-only recovery assessment for journal and sidecar consistency.
 
@@ -416,6 +440,7 @@ def inspect_execution_recovery(path: str | os.PathLike[str]) -> dict:
             "artifact_file": None,
             "artifact_sha256": None,
             "error": None,
+            "unreferenced_artifact": None,
         }
         if state == "STARTED":
             item["artifact_status"] = "INTERRUPTED"
@@ -436,6 +461,10 @@ def inspect_execution_recovery(path: str | os.PathLike[str]) -> dict:
                 except ExecutionJournalError as exc:
                     item["artifact_status"] = "INVALID"
                     item["error"] = str(exc)
+        if references.get(module) is None:
+            item["unreferenced_artifact"] = _inspect_unreferenced_module_artifact(
+                journal_path, module
+            )
         modules.append(item)
 
     unresolved = any(
@@ -454,6 +483,7 @@ def inspect_execution_recovery(path: str | os.PathLike[str]) -> dict:
         "limitations": [
             "This is a read-only consistency assessment, not a recovery or resume operation.",
             "A missing sidecar is reported as unavailable evidence, not reconstructed or inferred.",
+            "An expected sidecar without a journal reference is reported as unreferenced; its contents are never opened or adopted.",
             "Journal and artifact checksums establish byte consistency, not the truth or completeness of assessment observations.",
         ],
     }
@@ -642,6 +672,10 @@ def _print_recovery_report(path: str, report: dict) -> None:
                 print(f"      SHA-256: {item['artifact_sha256']}")
             if item.get("error"):
                 print(f"      Verification error: {item['error']}")
+            orphan = item.get("unreferenced_artifact")
+            if orphan and orphan.get("status") != "ABSENT":
+                detail = orphan.get("kind") or orphan.get("error") or "unknown"
+                print(f"      Unreferenced artifact: {orphan['status']} ({detail})")
 
     limitations = report.get("limitations", [])
     if limitations:
