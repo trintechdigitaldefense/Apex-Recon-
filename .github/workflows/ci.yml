@@ -59,6 +59,7 @@ on:
       - phase2ay-recovery-lifecycle-consistency
       - phase2az-journal-concurrent-writer-safety
       - phase2ba-filesystem-locking-portability
+      - phase2bb-http-https-comparison
 
   pull_request:
     branches:
