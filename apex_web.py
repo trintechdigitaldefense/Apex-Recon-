@@ -882,6 +882,7 @@ def _safe_url(url: str) -> str:
 
 def generate_html_report(result: dict, duration_seconds: float) -> str:
     """Write a self-contained, escaped HTML report for one HTTP assessment."""
+    import json
     import os
     from datetime import datetime
     from html import escape
@@ -928,6 +929,14 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
         rows.append("<tr><td colspan='6'>No findings were returned. This is not proof of security.</td></tr>")
 
     limit_items = "".join(f"<li>{escape(str(item))}</li>" for item in limitations)
+    comparison = result.get("http_https_comparison")
+    if isinstance(comparison, dict):
+        comparison_html = (
+            f"<p><strong>Outcome:</strong> {escape(str(comparison.get('outcome', 'UNKNOWN')))}</p>"
+            f"<pre class='comparison'>{escape(json.dumps(comparison, indent=2, sort_keys=True))}</pre>"
+        )
+    else:
+        comparison_html = "<p>HTTP/HTTPS comparison data was not included in this assessment record.</p>"
     fingerprints = result.get("fingerprints", [])
     fingerprint_rows = []
     for item in fingerprints if isinstance(fingerprints, list) else []:
@@ -967,7 +976,7 @@ main{{max-width:1180px;margin:0 auto;padding:28px 18px 48px}}header,.panel{{back
 .notice{{border-left:4px solid var(--gold);padding:10px 14px;background:#292516;color:#f6e8b2;border-radius:4px}}
 .table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:850px}}th,td{{text-align:left;vertical-align:top;padding:11px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}}th{{color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
 .severity{{font-weight:800;font-size:11px}}.critical,.high{{color:var(--red)}}.medium{{color:var(--orange)}}.low{{color:var(--gold)}}.info{{color:var(--cyan)}}.unknown{{color:var(--muted)}}
-li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
+li{{margin:6px 0;color:var(--muted)}}.comparison{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0a121d;border:1px solid var(--line);border-radius:8px;padding:14px;font:12px/1.5 ui-monospace,monospace;color:var(--text)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
 @media print{{body{{background:#fff;color:#111}}header,.panel,.stat{{background:#fff;color:#111;border-color:#ccc}}.meta,li,footer{{color:#333}}.notice{{background:#fff8dc;color:#222}}}}
 </style>
 </head>
@@ -984,6 +993,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <div class="table-wrap"><table><thead><tr><th>Severity / review priority</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommendation status</th><th>Recommended action</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
 </section>
+<section class="panel"><h2>HTTP/HTTPS Response Comparison</h2>{comparison_html}</section>
 <section class="panel"><h2>CMS and Technology Fingerprints</h2><p class="meta">Passive fingerprints from response headers and a capped HTML sample. Confidence describes fingerprint strength, not certainty that a component is installed.</p><div class="table-wrap"><table><thead><tr><th>Category</th><th>Observed</th><th>Confidence</th><th>Evidence markers</th><th>Source</th></tr></thead><tbody>{fingerprint_html}</tbody></table></div></section>
 <section class="panel"><h2>Assessment Limitations</h2><ul>{limit_items}</ul></section>
 <footer>CONFIDENTIAL — Intended only for personnel authorized to receive this assessment.<br>TrinTech Digital Defense · ApexRecon · Operator-initiated assessment</footer>
