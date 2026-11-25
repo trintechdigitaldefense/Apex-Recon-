@@ -1,11 +1,17 @@
 """Tests for the read-only operator recovery inspection CLI."""
 import contextlib
 import io
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from apex_execution import ExecutionJournal, MODULES, main
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+RECOVERY_CLI = REPOSITORY_ROOT / "apex_execution.py"
 
 
 class RecoveryCLITests(unittest.TestCase):
@@ -30,6 +36,17 @@ class RecoveryCLITests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = main([str(path), "--recovery"])
         return code, output.getvalue()
+
+    def _run_process(self, path):
+        """Run the same CLI entry point operators execute, in a child process."""
+        return subprocess.run(
+            [sys.executable, str(RECOVERY_CLI), str(path), "--recovery"],
+            cwd=str(Path(path).parent),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
 
     def test_cli_reports_verified_artifact_and_does_not_modify_files(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -89,6 +106,57 @@ class RecoveryCLITests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertNotIn("findings", output.lower())
             self.assertNotIn("target_scope", output.lower())
+
+    def test_subprocess_cli_verifies_synthetic_journal_without_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._journal(directory)
+            artifact = next(Path(directory).glob("*_module_1.json"))
+            journal_before = path.read_bytes()
+            artifact_before = artifact.read_bytes()
+
+            result = self._run_process(path)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("Recovery status: EVIDENCE_VERIFIED", result.stdout)
+            self.assertIn("artifact=VERIFIED", result.stdout)
+            self.assertEqual(path.read_bytes(), journal_before)
+            self.assertEqual(artifact.read_bytes(), artifact_before)
+
+    def test_subprocess_cli_reports_interrupted_module_without_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._journal(directory, completed=False)
+            journal_before = path.read_bytes()
+            sidecars_before = sorted(
+                item.name for item in Path(directory).glob("*_module_*.json")
+            )
+
+            result = self._run_process(path)
+
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("Recovery status: REVIEW_REQUIRED", result.stdout)
+            self.assertIn("artifact=INTERRUPTED", result.stdout)
+            self.assertEqual(path.read_bytes(), journal_before)
+            self.assertEqual(
+                sorted(item.name for item in Path(directory).glob("*_module_*.json")),
+                sidecars_before,
+            )
+
+    def test_subprocess_cli_reports_missing_sidecar_without_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._journal(directory)
+            artifact = next(Path(directory).glob("*_module_1.json"))
+            artifact.unlink()
+            journal_before = path.read_bytes()
+            self.assertFalse(artifact.exists())
+
+            result = self._run_process(path)
+
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("Recovery status: REVIEW_REQUIRED", result.stdout)
+            self.assertIn("artifact=INVALID", result.stdout)
+            self.assertIn("FileNotFoundError", result.stdout)
+            self.assertEqual(path.read_bytes(), journal_before)
+            self.assertFalse(artifact.exists())
 
 
 if __name__ == "__main__":
