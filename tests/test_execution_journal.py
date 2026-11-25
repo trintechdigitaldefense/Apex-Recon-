@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -151,6 +152,67 @@ class ExecutionJournalTests(unittest.TestCase):
             self.assertIn("incomplete final event", report["error"])
             with self.assertRaises(ExecutionJournalError):
                 journal.finish_module(MODULES[0], "FAILED")
+
+    def test_incomplete_tail_reports_verified_prefix_without_modifying_journal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            original = path.read_bytes()
+            tail = b'{"incomplete":'
+            path.write_bytes(original + tail)
+
+            report = inspect_execution_journal(path)
+
+            self.assertFalse(report["valid"])
+            self.assertEqual(report["failure_code"], "incomplete_final_event")
+            self.assertEqual(report["failure_sequence"], 3)
+            self.assertEqual(report["events"], 2)
+            self.assertEqual(report["verified_prefix_bytes"], len(original))
+            self.assertEqual(report["verified_prefix_sha256"], hashlib.sha256(original).hexdigest())
+            self.assertEqual(report["original_bytes"], len(original + tail))
+            self.assertEqual(report["original_sha256"], hashlib.sha256(original + tail).hexdigest())
+            self.assertEqual(path.read_bytes(), original + tail)
+            self.assertEqual(report["module_states"][MODULES[0]], "STARTED")
+
+    def test_earlier_corruption_reports_only_preceding_verified_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED")
+            lines = path.read_bytes().splitlines(keepends=True)
+            corrupted = json.loads(lines[1])
+            corrupted["status"] = "PARTIAL"
+            lines[1] = (json.dumps(corrupted, sort_keys=True, separators=(",", ":")) + "\\n").encode()
+            path.write_bytes(b"".join(lines))
+            original = path.read_bytes()
+            verified_prefix = lines[0]
+
+            report = inspect_execution_journal(path)
+
+            self.assertFalse(report["valid"])
+            self.assertEqual(report["failure_code"], "event_hash_mismatch")
+            self.assertEqual(report["failure_sequence"], 2)
+            self.assertEqual(report["events"], 1)
+            self.assertEqual(report["verified_prefix_bytes"], len(verified_prefix))
+            self.assertEqual(report["verified_prefix_sha256"], hashlib.sha256(verified_prefix).hexdigest())
+            self.assertEqual(report["original_sha256"], hashlib.sha256(original).hexdigest())
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(report["module_states"][MODULES[0]], "NOT_STARTED")
+
+    def test_invalid_utf8_event_preserves_prior_verified_prefix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            prefix = path.read_bytes()
+            path.write_bytes(prefix + b"\\xff\\n")
+
+            report = inspect_execution_journal(path)
+
+            self.assertFalse(report["valid"])
+            self.assertEqual(report["failure_code"], "invalid_utf8")
+            self.assertEqual(report["failure_sequence"], 3)
+            self.assertEqual(report["verified_prefix_bytes"], len(prefix))
+            self.assertEqual(report["verified_prefix_sha256"], hashlib.sha256(prefix).hexdigest())
 
     def test_tampered_event_hash_is_detected(self):
         with tempfile.TemporaryDirectory() as directory:
