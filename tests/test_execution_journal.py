@@ -182,7 +182,7 @@ class ExecutionJournalTests(unittest.TestCase):
             lines = path.read_bytes().splitlines(keepends=True)
             corrupted = json.loads(lines[1])
             corrupted["status"] = "PARTIAL"
-            lines[1] = (json.dumps(corrupted, sort_keys=True, separators=(",", ":")) + "\\n").encode()
+            lines[1] = (json.dumps(corrupted, sort_keys=True, separators=(",", ":")) + "\n").encode()
             path.write_bytes(b"".join(lines))
             original = path.read_bytes()
             verified_prefix = lines[0]
@@ -204,7 +204,7 @@ class ExecutionJournalTests(unittest.TestCase):
             path, journal, _ = self._create(directory, [MODULES[0]])
             journal.start_module(MODULES[0])
             prefix = path.read_bytes()
-            path.write_bytes(prefix + b"\\xff\\n")
+            path.write_bytes(prefix + b"\xff\n")
 
             report = inspect_execution_journal(path)
 
