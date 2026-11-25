@@ -272,3 +272,13 @@ Phase 2AW adds deterministic subprocess crash tests for the execution journal an
 
 ### Milestone 2AX: orphaned execution artifact diagnostics (development)
 Phase 2AX extends read-only recovery inspection to identify the expected module-sidecar path when a module has no artifact reference in the verified journal. It reports whether that path is absent or contains an unreferenced filesystem object, and identifies regular files, directories, symlinks, and other object types using metadata-only inspection. It never opens, hashes, adopts, deletes, or repairs an unreferenced object. Referenced sidecars continue through the existing checksum and metadata verification path. No assessment scope, target interaction, authorization gate, or network behavior changes. See [Phase 2AX orphaned execution artifact diagnostics](docs/PHASE2AX_ORPHAN_ARTIFACT_DIAGNOSTICS.md).
+
+
+### Milestone 2AY: recovery lifecycle consistency (development)
+Phase 2AY validates engagement lifecycle transitions and the interruption window between sidecar publication and journal completion. Synthetic tests verify that invalid transitions are rejected and that unreferenced sidecars remain untrusted during read-only recovery inspection. See [Phase 2AY recovery lifecycle consistency](docs/PHASE2AY_RECOVERY_LIFECYCLE_CONSISTENCY.md).
+
+### Milestone 2AZ: execution journal concurrent-writer safety (development)
+Phase 2AZ uses independent processes to test competing journal transitions. It verifies that duplicate starts and finishes are rejected, distinct starts are preserved, and the journal remains verifiable under the tested filesystem advisory-lock behavior. This does not prove lock semantics on every filesystem or physical power-loss durability. See [Phase 2AZ execution journal concurrent-writer safety](docs/PHASE2AZ_EXECUTION_JOURNAL_CONCURRENT_WRITER_SAFETY.md).
+
+### Milestone 2BA: filesystem and journal-lock portability (development)
+Phase 2BA extends the non-destructive filesystem probe to test whether an exclusive advisory lock held by one process blocks a second process and is released correctly. The capability is reported separately from atomic evidence publication and exposed by the environment doctor. Results apply only to the exact tested directory and runtime; unsupported locking blocks reliance on journal concurrency in that location. No assessment behavior or journal algorithm changes. See [Phase 2BA filesystem and journal-lock portability](docs/PHASE2BA_FILESYSTEM_LOCKING_PORTABILITY.md).

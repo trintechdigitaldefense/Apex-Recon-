@@ -13,8 +13,10 @@ import json
 import os
 import platform
 import stat
+import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # Running this file by path puts tools/ rather than the repository root on sys.path.
@@ -62,6 +64,118 @@ def _remove_probe_tree(root: Path, max_passes: int = 8) -> tuple[bool, str | Non
     return False, last_error or "probe directory remained non-empty after bounded cleanup"
 
 
+
+
+def _probe_advisory_file_locking(lock_path: Path, workspace: Path) -> dict:
+    """Verify that an exclusive flock blocks and then releases across processes."""
+    result = {
+        "supported": False,
+        "exclusive_lock_blocks_other_process": False,
+        "lock_released_for_waiting_process": False,
+        "error": None,
+    }
+    try:
+        import fcntl
+    except ImportError as exc:
+        result["error"] = _error(exc)
+        return result
+
+    blocked_marker = workspace / "lock-blocked"
+    release_marker = workspace / "lock-release"
+    acquired_marker = workspace / "lock-acquired"
+    lock_fd = -1
+    child = None
+    child_code = r"""
+import errno
+import fcntl
+import os
+import sys
+import time
+from pathlib import Path
+
+lock_path, blocked_path, release_path, acquired_path = sys.argv[1:]
+fd = os.open(lock_path, os.O_RDWR)
+try:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno not in (errno.EACCES, errno.EAGAIN):
+            raise
+        Path(blocked_path).write_text("blocked", encoding="ascii")
+    else:
+        Path(blocked_path).write_text("unexpectedly-acquired", encoding="ascii")
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        raise SystemExit(4)
+
+    deadline = time.monotonic() + 8
+    while not Path(release_path).exists():
+        if time.monotonic() >= deadline:
+            raise SystemExit(5)
+        time.sleep(0.01)
+
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    Path(acquired_path).write_text("acquired", encoding="ascii")
+    fcntl.flock(fd, fcntl.LOCK_UN)
+finally:
+    os.close(fd)
+"""
+    try:
+        lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        child = subprocess.Popen(
+            [
+                sys.executable, "-c", child_code, str(lock_path),
+                str(blocked_marker), str(release_marker), str(acquired_marker),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        deadline = time.monotonic() + 8
+        while not blocked_marker.exists() and child.poll() is None:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("child process did not test the held lock")
+            time.sleep(0.01)
+
+        if not blocked_marker.exists() or blocked_marker.read_text(encoding="ascii") != "blocked":
+            raise RuntimeError("exclusive lock did not block a competing process")
+        result["exclusive_lock_blocks_other_process"] = True
+
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        release_marker.write_text("release", encoding="ascii")
+        stdout, stderr = child.communicate(timeout=8)
+        if child.returncode != 0:
+            raise RuntimeError(
+                f"lock probe child exited {child.returncode}: {(stderr or stdout).strip()[:240]}"
+            )
+        result["lock_released_for_waiting_process"] = (
+            acquired_marker.exists()
+            and acquired_marker.read_text(encoding="ascii") == "acquired"
+        )
+        result["supported"] = (
+            result["exclusive_lock_blocks_other_process"]
+            and result["lock_released_for_waiting_process"]
+        )
+        if not result["supported"]:
+            result["error"] = "waiting process did not acquire the lock after release"
+    except Exception as exc:
+        result["error"] = _error(exc)
+    finally:
+        if child is not None and child.poll() is None:
+            child.kill()
+            try:
+                child.communicate(timeout=3)
+            except Exception:
+                pass
+        if lock_fd >= 0:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            os.close(lock_fd)
+    return result
+
+
 def probe(parent: Path) -> dict:
     parent = parent.expanduser().resolve()
     if not parent.exists() or not parent.is_dir():
@@ -75,6 +189,12 @@ def probe(parent: Path) -> dict:
         "parent_directory_name": parent.name or str(parent),
         "hard_links": {"supported": None, "cleanup_supported": None, "error": None},
         "directory_fsync": {"supported": None, "error": None},
+        "advisory_file_locking": {
+            "supported": False,
+            "exclusive_lock_blocks_other_process": False,
+            "lock_released_for_waiting_process": False,
+            "error": None,
+        },
         "private_file_mode_0600": {"supported": None, "observed_mode": None, "error": None},
         "atomic_publication": {
             "supported": None, "content_verified": False,
@@ -130,6 +250,12 @@ def probe(parent: Path) -> dict:
         except OSError as exc:
             result["directory_fsync"]["supported"] = False
             result["directory_fsync"]["error"] = _error(exc)
+
+        lock_dir = root / "lock-check"
+        lock_dir.mkdir()
+        result["advisory_file_locking"] = _probe_advisory_file_locking(
+            lock_dir / "journal.lock", lock_dir
+        )
 
         atomic_dir = root / "atomic-check"
         atomic_dir.mkdir()
