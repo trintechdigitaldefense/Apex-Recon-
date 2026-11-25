@@ -51,6 +51,7 @@ on:
       - phase2aq-checkpoint-failure-stop
       - phase2ar-execution-journal-recovery-diagnostics
       - phase2as-recovery-workflow-integrity
+      - phase2at-operator-recovery-inspection
 
   pull_request:
     branches:
@@ -96,6 +97,7 @@ on:
       - phase2ap-assessment-preflight-enforcement
       - phase2aq-checkpoint-failure-stop
       - phase2ar-execution-journal-recovery-diagnostics
+      - phase2at-operator-recovery-inspection
 
 permissions:
   contents: read

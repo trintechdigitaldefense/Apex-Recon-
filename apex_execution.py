@@ -611,20 +611,70 @@ class ExecutionJournal:
         return self._append("ENGAGEMENT_FINALIZATION_FAILED")
 
 
+def _print_recovery_report(path: str, report: dict) -> None:
+    """Render a concise operator summary without exposing assessment outcomes."""
+    print("ApexRecon execution recovery inspection")
+    print("=" * 42)
+    print(f"Journal: {path}")
+    print(f"Recovery status: {report.get('recovery_status', 'UNKNOWN')}")
+    print(f"Journal integrity: {'VALID' if report.get('valid') else 'INVALID'}")
+    if report.get("execution_id"):
+        print(f"Execution ID: {report['execution_id']}")
+    print(f"Execution status: {report.get('execution_status', 'UNKNOWN')}")
+
+    journal = report.get("journal", {})
+    if not report.get("valid"):
+        print(f"Failure code: {journal.get('failure_code') or 'unavailable'}")
+        print(f"Failure sequence: {journal.get('failure_sequence') or 'unavailable'}")
+        print(f"Verified prefix: {journal.get('verified_prefix_bytes', 0)} bytes")
+        if journal.get("verified_prefix_sha256"):
+            print(f"Verified prefix SHA-256: {journal['verified_prefix_sha256']}")
+        if journal.get("error"):
+            print(f"Journal error: {journal['error']}")
+    else:
+        print("\nModule recovery states:")
+        for item in report.get("modules", []):
+            print(f"  - {item['module']}: journal={item['journal_state']} | "
+                  f"artifact={item['artifact_status']}")
+            if item.get("artifact_file"):
+                print(f"      Artifact: {item['artifact_file']}")
+                print(f"      SHA-256: {item['artifact_sha256']}")
+            if item.get("error"):
+                print(f"      Verification error: {item['error']}")
+
+    limitations = report.get("limitations", [])
+    if limitations:
+        print("\nLimitations:")
+        for limitation in limitations:
+            print(f"  - {limitation}")
+
+
 def main(argv=None) -> int:
     """Inspect an execution journal without resuming any assessment."""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Inspect ApexRecon execution state and verify completed module evidence."
+        description="Read-only inspection of ApexRecon execution journals and evidence."
     )
-    parser.add_argument("journal", help="path to apex_execution_<UUID>.jsonl")
-    parser.add_argument(
+    parser.add_argument("journal", help="path to an existing ApexRecon execution journal")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--recovery", action="store_true",
+        help="inspect journal and outcome-sidecar consistency (read-only)",
+    )
+    mode.add_argument(
         "--verify-artifacts", action="store_true",
-        help="also verify and summarize completed module outcome sidecars",
+        help="verify and summarize completed module outcome sidecars as JSON",
     )
     args = parser.parse_args(argv)
     try:
+        if args.recovery:
+            report = inspect_execution_recovery(args.journal)
+            _print_recovery_report(args.journal, report)
+            if not report["valid"]:
+                return 1
+            return 0 if report["recovery_status"] == "EVIDENCE_VERIFIED" else 2
+
         report = inspect_execution_journal(args.journal)
         if args.verify_artifacts and report["valid"]:
             recovered = load_completed_module_artifacts(args.journal)
