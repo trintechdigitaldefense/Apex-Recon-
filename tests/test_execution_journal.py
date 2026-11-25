@@ -11,6 +11,7 @@ from apex_execution import (
     MODULES,
     inspect_execution_journal,
     load_completed_module_artifacts,
+    inspect_execution_recovery,
 )
 
 
@@ -255,6 +256,88 @@ class ExecutionJournalTests(unittest.TestCase):
             with self.assertRaises(ExecutionJournalError):
                 ExecutionJournal.create(path, str(uuid.uuid4()), [MODULES[0]])
             self.assertEqual(path.read_bytes(), original)
+
+
+    def test_recovery_inspection_verifies_sidecar_and_reports_consistent_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED", {
+                "status": "COMPLETED", "target_scope": {"target": "synthetic"},
+                "findings": [], "duration_seconds": 0.1,
+            })
+            journal.finalize()
+
+            report = inspect_execution_recovery(path)
+
+            self.assertTrue(report["valid"])
+            self.assertEqual(report["recovery_status"], "EVIDENCE_VERIFIED")
+            self.assertEqual(report["execution_status"], "FINALIZED")
+            self.assertEqual(report["modules"][0]["artifact_status"], "VERIFIED")
+            self.assertEqual(report["modules"][0]["journal_state"], "COMPLETED")
+
+    def test_recovery_inspection_reports_missing_sidecar_without_repair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED", {
+                "status": "COMPLETED", "target_scope": {"target": "synthetic"},
+                "findings": [], "duration_seconds": 0.1,
+            })
+            artifact = next(Path(directory).glob("*_module_1.json"))
+            original_journal = path.read_bytes()
+            artifact.unlink()
+
+            report = inspect_execution_recovery(path)
+
+            self.assertEqual(report["recovery_status"], "REVIEW_REQUIRED")
+            self.assertEqual(report["modules"][0]["artifact_status"], "INVALID")
+            self.assertIn("FileNotFoundError", report["modules"][0]["error"])
+            self.assertEqual(path.read_bytes(), original_journal)
+            self.assertFalse(artifact.exists())
+
+    def test_recovery_inspection_reports_interrupted_and_not_started_modules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0], MODULES[2]])
+            journal.start_module(MODULES[0])
+
+            report = inspect_execution_recovery(path)
+
+            self.assertEqual(report["recovery_status"], "REVIEW_REQUIRED")
+            self.assertEqual(report["modules"][0]["artifact_status"], "INTERRUPTED")
+            self.assertEqual(report["modules"][1]["artifact_status"], "NOT_STARTED")
+
+    def test_recovery_inspection_does_not_trust_invalid_journal_prefix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            with path.open("ab") as handle:
+                handle.write(b'{"broken":')
+            original = path.read_bytes()
+
+            report = inspect_execution_recovery(path)
+
+            self.assertFalse(report["valid"])
+            self.assertEqual(report["recovery_status"], "JOURNAL_INVALID")
+            self.assertEqual(report["modules"], [])
+            self.assertEqual(path.read_bytes(), original)
+
+    def test_recovery_inspection_reports_tampered_sidecar(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, journal, _ = self._create(directory, [MODULES[0]])
+            journal.start_module(MODULES[0])
+            journal.finish_module(MODULES[0], "COMPLETED", {
+                "status": "COMPLETED", "target_scope": {"target": "synthetic"},
+                "findings": [], "duration_seconds": 0.1,
+            })
+            artifact = next(Path(directory).glob("*_module_1.json"))
+            artifact.write_text('{"tampered":true}\\n', encoding="utf-8")
+
+            report = inspect_execution_recovery(path)
+
+            self.assertEqual(report["recovery_status"], "REVIEW_REQUIRED")
+            self.assertEqual(report["modules"][0]["artifact_status"], "INVALID")
+            self.assertEqual(report["modules"][0]["error"], "module artifact checksum mismatch")
 
 
 if __name__ == "__main__":
