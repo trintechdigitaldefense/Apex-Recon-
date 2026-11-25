@@ -289,8 +289,12 @@ class HeaderAssessmentTests(unittest.TestCase):
 
 
 class AssessmentFlowTests(unittest.TestCase):
-    def response(self, status, scheme, headers=None):
-        return web.FetchResult(status, headers or Message(), f"{scheme}://example.com/login")
+    def response(self, status, scheme, headers=None, redirects=()):
+        return web.FetchResult(
+            status, headers or Message(), f"{scheme}://example.com/login",
+            redirect_chain=tuple(redirects),
+            body_bytes_read=0,
+        )
 
     @patch.object(web, "_fetch")
     def test_http_redirect_and_https_headers_are_assessed(self, mocked_fetch):
@@ -300,7 +304,13 @@ class AssessmentFlowTests(unittest.TestCase):
                 "Content-Security-Policy": "default-src 'self'",
                 "X-Content-Type-Options": "nosniff",
                 "X-Frame-Options": "DENY",
-            }),
+            }, redirects=({
+                "status": 301,
+                "source_url": "http://example.com/login",
+                "destination_url": "https://example.com/login",
+                "content_type": "",
+                "content_length": 0,
+            },)),
         ]
         result = web.assess_url("https://example.com/login?access_token=secret")
         self.assertEqual(mocked_fetch.call_count, 1)
@@ -310,6 +320,7 @@ class AssessmentFlowTests(unittest.TestCase):
         self.assertEqual(result["https_status"], 200)
         self.assertNotIn("access_token", str(result))
         self.assertEqual(next(f for f in result["findings"] if f["check"] == "HTTPS_ENFORCEMENT")["status"], "REDIRECTED")
+        self.assertEqual(result["http_https_comparison"]["outcome"], "HTTP_REDIRECTED_TO_HTTPS")
 
     @patch.object(web, "_fetch")
     def test_http_without_https_redirect_is_flagged(self, mocked_fetch):
