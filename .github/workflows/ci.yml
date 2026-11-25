@@ -107,6 +107,7 @@ on:
       - phase2au-recovery-cli-process-validation
       - phase2ax-orphan-artifact-diagnostics
       - phase2ay-recovery-lifecycle-consistency
+      - phase2az-journal-concurrent-writer-safety
 
 permissions:
   contents: read
