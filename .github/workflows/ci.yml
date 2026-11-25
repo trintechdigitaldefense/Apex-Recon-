@@ -53,8 +53,10 @@ on:
       - phase2as-recovery-workflow-integrity
       - phase2at-operator-recovery-inspection
       - phase2au-recovery-cli-process-validation
+      - phase2ax-orphan-artifact-diagnostics
       - phase2av-recovery-integrity-edge-cases
       - phase2aw-execution-journal-crash-consistency
+      - phase2ax-orphan-artifact-diagnostics
 
   pull_request:
     branches:
