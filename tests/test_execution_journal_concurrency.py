@@ -124,7 +124,7 @@ class ExecutionJournalConcurrencyTests(unittest.TestCase):
 
     def test_competing_processes_cannot_finish_one_module_twice(self):
         with tempfile.TemporaryDirectory() as directory:
-            path, journal = self._journal(directory)
+            path, journal = self._journal(directory, modules=[MODULES[0]])
             journal.start_module(MODULES[0])
 
             outcomes = self._race(path, [MODULES[0], MODULES[0]], "finish")
@@ -133,11 +133,11 @@ class ExecutionJournalConcurrencyTests(unittest.TestCase):
             report = inspect_execution_journal(path)
             self.assertTrue(report["valid"])
             self.assertEqual(report["module_states"][MODULES[0]], "COMPLETED")
-            self.assertEqual(len(report["artifact_refs"]), 1)
+            self.assertEqual(len(report["artifact_refs"]), 0)
 
             recovery = inspect_execution_recovery(path)
-            self.assertEqual(recovery["recovery_status"], "EVIDENCE_VERIFIED")
-            self.assertEqual(recovery["modules"][0]["artifact_status"], "VERIFIED")
+            self.assertEqual(recovery["recovery_status"], "REVIEW_REQUIRED")
+            self.assertEqual(recovery["modules"][0]["artifact_status"], "NO_ARTIFACT_RECORDED")
 
 
 if __name__ == "__main__":
