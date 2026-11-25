@@ -94,6 +94,7 @@ on:
       - phase2ao-storage-aware-readiness
       - phase2ap-assessment-preflight-enforcement
       - phase2aq-checkpoint-failure-stop
+      - phase2ar-execution-journal-recovery-diagnostics
 
 permissions:
   contents: read
