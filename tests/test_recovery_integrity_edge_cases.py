@@ -112,8 +112,15 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
             orphan.write_bytes(b"synthetic orphan bytes, not evidence")
             journal_before = path.read_bytes()
             orphan_before = orphan.read_bytes()
+            real_open = os.open
 
-            report = inspect_execution_recovery(path)
+            def reject_orphan_open(candidate, flags, *args, **kwargs):
+                if os.fspath(candidate) == str(orphan):
+                    raise AssertionError("unreferenced sidecar must not be opened")
+                return real_open(candidate, flags, *args, **kwargs)
+
+            with mock.patch("apex_execution.os.open", side_effect=reject_orphan_open):
+                report = inspect_execution_recovery(path)
             module = report["modules"][0]
 
             self.assertEqual(report["recovery_status"], "REVIEW_REQUIRED")
