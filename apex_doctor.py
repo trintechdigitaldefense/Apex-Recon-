@@ -123,6 +123,11 @@ def collect_diagnostics(
         "error": None,
         "probe": None,
     }
+    journal_locking = {
+        "checked": False,
+        "compatible": False,
+        "error": "filesystem lock probe was not run",
+    }
     if storage_probe_fn is None:
         try:
             from tools.apex_storage_probe import probe as storage_probe_fn
@@ -138,6 +143,13 @@ def collect_diagnostics(
                 and storage_result.get("temporary_artifacts_removed") is True
             )
             storage["probe"] = storage_result
+            lock_result = storage_result.get("advisory_file_locking", {}) if isinstance(storage_result, dict) else {}
+            journal_locking["checked"] = isinstance(lock_result, dict) and lock_result.get("supported") is not None
+            journal_locking["compatible"] = (
+                isinstance(lock_result, dict)
+                and lock_result.get("supported") is True
+            )
+            journal_locking["error"] = lock_result.get("error") if isinstance(lock_result, dict) else "filesystem lock probe result is unavailable"
             if not storage["compatible"]:
                 storage["error"] = "required atomic-storage capabilities are unavailable or cleanup was incomplete"
         except Exception as exc:
@@ -156,6 +168,7 @@ def collect_diagnostics(
         "environment": environment,
         "project": project,
         "storage": storage,
+        "journal_locking": journal_locking,
         "tools": tools,
         "python_packages": python_packages,
         "capabilities": {
@@ -171,6 +184,7 @@ def collect_diagnostics(
             "project_layout": project["complete"],
             "artifact_directory_writable": project["writable"],
             "atomic_evidence_storage": storage["compatible"],
+            "execution_journal_locking": journal_locking["compatible"],
         },
     }
 
@@ -208,6 +222,7 @@ def render_report(report: dict) -> str:
         f"  Artifact output directory: {project.get('artifact_directory', '[not checked]')}",
         "  Artifact directory write test: " + ("WRITABLE" if project.get("writable") else "FAILED"),
         "  Atomic evidence storage: " + ("COMPATIBLE" if report.get("storage", {}).get("compatible") else "UNSUPPORTED / NOT VERIFIED"),
+        "  Execution journal locking: " + ("COMPATIBLE" if report.get("journal_locking", {}).get("compatible") else "UNSUPPORTED / NOT VERIFIED"),
     ]
     if not project.get("complete"):
         missing = [name for name, present in project.get("required_files", {}).items() if not present]
