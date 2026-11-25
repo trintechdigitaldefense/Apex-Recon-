@@ -75,21 +75,55 @@ def _new_event(sequence: int, execution_id: str, event_type: str,
 
 
 def _verify_bytes(data: bytes) -> dict:
+    """Verify the journal and report its exact verified prefix without repair."""
     empty = {
         "valid": False, "events": 0, "execution_id": None,
         "selected_modules": [], "module_states": {}, "artifact_refs": [],
         "execution_status": "INVALID", "head_hash": None, "error": "journal is empty",
     }
+
+    def result(valid, events, execution_id, selected, states, artifact_refs,
+               head_hash, error, failure_code, failure_sequence, prefix_bytes):
+        prefix = data[:prefix_bytes]
+        return {
+            "valid": valid,
+            "events": events,
+            "execution_id": execution_id,
+            "selected_modules": selected,
+            "module_states": states,
+            "artifact_refs": artifact_refs,
+            "execution_status": execution_status if valid else "INVALID",
+            "head_hash": head_hash,
+            "error": error,
+            "failure_code": failure_code,
+            "failure_sequence": failure_sequence,
+            "original_bytes": len(data),
+            "original_sha256": hashlib.sha256(data).hexdigest(),
+            "verified_prefix_bytes": len(prefix),
+            "verified_prefix_sha256": hashlib.sha256(prefix).hexdigest(),
+        }
+
     if not data:
-        return empty
+        return {
+            **empty,
+            "failure_code": "empty_journal",
+            "failure_sequence": 1,
+            "original_bytes": 0,
+            "original_sha256": hashlib.sha256(data).hexdigest(),
+            "verified_prefix_bytes": 0,
+            "verified_prefix_sha256": hashlib.sha256(data).hexdigest(),
+        }
     if len(data) > MAX_JOURNAL_BYTES:
-        return {**empty, "error": "journal exceeds size limit"}
-    if not data.endswith(b"\n"):
-        return {**empty, "error": "journal has an incomplete final event"}
-    try:
-        lines = data.decode("utf-8").splitlines()
-    except UnicodeDecodeError:
-        return {**empty, "error": "journal is not UTF-8"}
+        return result(
+            False, 0, None, [], {}, [], None, "journal exceeds size limit",
+            "size_limit", None, 0,
+        )
+
+    last_newline = data.rfind(b"\n")
+    complete_end = last_newline + 1
+    complete_data = data[:complete_end]
+    trailing = data[complete_end:]
+    lines = complete_data[:-1].split(b"\n") if complete_data else []
 
     previous = GENESIS_HASH
     execution_id = None
@@ -97,12 +131,22 @@ def _verify_bytes(data: bytes) -> dict:
     states = {}
     artifact_refs = []
     finalized = None
+    verified_bytes = 0
     expected_keys = {
         "schema_version", "sequence", "timestamp", "execution_id",
         "event_type", "module", "status", "selected_modules",
         "artifact_file", "artifact_sha256", "previous_hash", "event_hash",
     }
-    for index, line in enumerate(lines, start=1):
+
+    for index, raw_line in enumerate(lines, start=1):
+        try:
+            line = raw_line.decode("utf-8")
+        except UnicodeDecodeError:
+            return result(
+                False, index - 1, execution_id, selected, states, artifact_refs,
+                previous, f"event {index}: journal event is not UTF-8",
+                "invalid_utf8", index, verified_bytes,
+            )
         try:
             event = json.loads(line)
             if not isinstance(event, dict) or set(event) != expected_keys:
@@ -187,14 +231,38 @@ def _verify_bytes(data: bytes) -> dict:
                 else:
                     raise ValueError("unsupported event type")
             previous = claimed_hash
+            verified_bytes += len(raw_line) + 1
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            return {
-                "valid": False, "events": index - 1, "execution_id": execution_id,
-                "selected_modules": selected, "module_states": states,
-                "artifact_refs": artifact_refs,
-                "execution_status": "INVALID", "head_hash": previous,
-                "error": f"event {index}: {exc}",
-            }
+            message = str(exc)
+            if "canonical" in message:
+                code = "non_canonical_json"
+            elif "hash-chain" in message:
+                code = "broken_hash_chain"
+            elif "hash mismatch" in message:
+                code = "event_hash_mismatch"
+            elif "timestamp" in message:
+                code = "invalid_timestamp"
+            elif "sequence" in message:
+                code = "invalid_sequence"
+            elif "schema" in message:
+                code = "unsupported_schema"
+            elif "finalization" in message or "finalize" in message:
+                code = "invalid_finalization"
+            elif "JSON" in message or "Expecting" in message:
+                code = "invalid_json"
+            else:
+                code = "invalid_event"
+            return result(
+                False, index - 1, execution_id, selected, states, artifact_refs,
+                previous, f"event {index}: {exc}", code, index, verified_bytes,
+            )
+
+    if trailing:
+        return result(
+            False, len(lines), execution_id, selected, states, artifact_refs,
+            previous, "journal has an incomplete final event",
+            "incomplete_final_event", len(lines) + 1, verified_bytes,
+        )
 
     if finalized:
         execution_status = finalized
@@ -204,13 +272,10 @@ def _verify_bytes(data: bytes) -> dict:
         execution_status = "INCOMPLETE"
     else:
         execution_status = "AWAITING_FINALIZATION"
-    return {
-        "valid": True, "events": len(lines), "execution_id": execution_id,
-        "selected_modules": selected, "module_states": states,
-        "artifact_refs": artifact_refs,
-        "execution_status": execution_status, "head_hash": previous, "error": None,
-    }
-
+    return result(
+        True, len(lines), execution_id, selected, states, artifact_refs,
+        previous, None, None, None, verified_bytes,
+    )
 
 def inspect_execution_journal(path: str | os.PathLike[str]) -> dict:
     """Read and verify a journal without changing it."""
