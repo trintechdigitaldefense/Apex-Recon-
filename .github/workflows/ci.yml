@@ -57,6 +57,7 @@ on:
       - phase2aw-execution-journal-crash-consistency
       - phase2ax-orphan-artifact-diagnostics
       - phase2ay-recovery-lifecycle-consistency
+      - phase2az-journal-concurrent-writer-safety
 
   pull_request:
     branches:
