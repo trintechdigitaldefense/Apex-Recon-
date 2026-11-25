@@ -8,7 +8,7 @@ Validate that independent processes appending to one execution journal are seria
 
 - Two processes attempt to start the same selected module at the same time. Exactly one transition must succeed; the other must be rejected, and the journal must remain valid.
 - Two processes start different selected modules at the same time. Both transitions must be retained in the append-only journal, with no lost event or hash-chain corruption.
-- Two processes attempt to finish the same started module at the same time while publishing equivalent synthetic outcomes. Exactly one completion must succeed, one artifact reference must be recorded, and recovery inspection must verify the resulting artifact.
+- Two processes attempt to finish the same started module at the same time without publishing outcome artifacts. Exactly one completion must succeed, one must be rejected, and the journal must remain valid. Recovery inspection must report the expected review-required state because no artifact was recorded.
 
 Each child process waits at a filesystem barrier so the parent can release competing operations together. Tests use subprocesses and temporary directories only.
 
