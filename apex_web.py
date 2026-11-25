@@ -153,7 +153,6 @@ def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
-            "Range": f"bytes=0-{MAX_RESPONSE_BYTES - 1}",
             "Connection": "close",
             "Accept-Encoding": "identity",
         },
