@@ -19,7 +19,7 @@ class RecoveryLifecycleConsistencyTests(unittest.TestCase):
         journal = ExecutionJournal.create(path, "phase2ay-synthetic", [MODULES[0]])
         return path, journal
 
-    def _outcome(self):
+    def _make_outcome(self):
         return {
             "status": "COMPLETED",
             "target_scope": {"scope": "synthetic"},
@@ -35,7 +35,7 @@ class RecoveryLifecycleConsistencyTests(unittest.TestCase):
             journal.start_module(MODULES[0])
             self.assertEqual(inspect_execution_journal(path)["execution_status"], "INCOMPLETE")
 
-            journal.finish_module(MODULES[0], "COMPLETED", self._outcome())
+            journal.finish_module(MODULES[0], "COMPLETED", self._make_outcome())
             self.assertEqual(
                 inspect_execution_journal(path)["execution_status"],
                 "AWAITING_FINALIZATION",
@@ -58,7 +58,7 @@ class RecoveryLifecycleConsistencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             _path, journal = self._journal(directory)
             with self.assertRaises(ExecutionJournalError):
-                journal.finish_module(MODULES[0], "COMPLETED", self._outcome())
+                journal.finish_module(MODULES[0], "COMPLETED", self._make_outcome())
 
     def test_crash_window_after_sidecar_publication_remains_untrusted(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -73,7 +73,7 @@ class RecoveryLifecycleConsistencyTests(unittest.TestCase):
                 side_effect=ExecutionJournalError("synthetic append interruption"),
             ):
                 with self.assertRaises(ExecutionJournalError):
-                    journal.finish_module(MODULES[0], "COMPLETED", self._outcome())
+                    journal.finish_module(MODULES[0], "COMPLETED", self._make_outcome())
 
             orphan = Path(directory) / "execution_module_1.json"
             self.assertTrue(orphan.is_file())
