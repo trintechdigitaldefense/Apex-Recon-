@@ -180,7 +180,7 @@ def build_evidence_record(
 
     if result["module"] == "HTTP Security Assessment":
         provenance = {
-            "method": "Direct observation of bounded HTTP response status, headers, and capped HTML sample",
+            "method": "Direct observation of bounded HTTP/HTTPS response status, headers, redirect behavior, and capped response-body samples",
             "request_limit": "At most two read-only GET requests; at most 8 KiB of response body sampled per response (16 KiB total), without a Range request",
             "interpretation": "Header observations and heuristic fingerprints do not prove exploitability or a complete technology inventory",
         }
