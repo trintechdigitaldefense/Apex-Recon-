@@ -55,6 +55,7 @@ on:
       - phase2au-recovery-cli-process-validation
       - phase2av-recovery-integrity-edge-cases
       - phase2aw-execution-journal-crash-consistency
+      - phase2ax-orphan-artifact-diagnostics
 
   pull_request:
     branches:
@@ -102,6 +103,7 @@ on:
       - phase2ar-execution-journal-recovery-diagnostics
       - phase2at-operator-recovery-inspection
       - phase2au-recovery-cli-process-validation
+      - phase2ax-orphan-artifact-diagnostics
 
 permissions:
   contents: read
