@@ -1,8 +1,12 @@
+import os
+import tempfile
 import unittest
 from email.message import Message
+from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.request import Request
 
+import apex_evidence
 import apex_web as web
 
 
@@ -119,6 +123,40 @@ class HTTPHTTPSComparisonTests(unittest.TestCase):
 
         self.assertEqual(result["outcome"], "HTTP_RESPONSE_WITHOUT_BODY")
         self.assertFalse(result["http_content_observed"])
+
+
+    def test_assessment_includes_comparison_and_report_exports_it(self):
+        http = self.response(
+            "http://example.test/", body=b"plain", content_type="text/html",
+            content_length=5
+        )
+        https = self.response(
+            "https://example.test/", body=b"secure", content_type="text/html",
+            content_length=6
+        )
+        with patch.object(web, "_fetch", side_effect=[http, https]):
+            result = web.assess_url("example.test")
+
+        comparison = result["http_https_comparison"]
+        self.assertEqual(comparison["outcome"], "HTTP_CONTENT_OBSERVED")
+        self.assertFalse(comparison["direct_response_comparison"]["body_samples_match"])
+
+        record = apex_evidence.build_evidence_record(result, 1.0)
+        self.assertEqual(
+            record["evidence"]["technical_details"]["http_https_comparison"]["outcome"],
+            "HTTP_CONTENT_OBSERVED",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            original = os.getcwd()
+            try:
+                os.chdir(tmp)
+                report_path = web.generate_html_report(result, 1.0)
+                report = Path(report_path).read_text(encoding="utf-8")
+            finally:
+                os.chdir(original)
+        self.assertIn("HTTP/HTTPS Response Comparison", report)
+        self.assertIn("HTTP_CONTENT_OBSERVED", report)
 
     def test_body_comparison_is_unknown_when_samples_are_truncated(self):
         http = self.response("http://example.test/", body=b"abc", content_length=9000,
