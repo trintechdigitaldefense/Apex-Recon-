@@ -103,6 +103,62 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
             self.assertIn("invalid module artifact reference", report["error"])
             self.assertEqual(path.read_bytes(), before)
 
+    def test_unreferenced_sidecar_is_reported_without_reading_or_adopting_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.jsonl"
+            journal = ExecutionJournal.create(path, "phase2ax-orphan", [MODULES[0]])
+            journal.start_module(MODULES[0])
+            orphan = Path(directory) / "execution_module_1.json"
+            orphan.write_bytes(b"synthetic orphan bytes, not evidence")
+            journal_before = path.read_bytes()
+            orphan_before = orphan.read_bytes()
+
+            report = inspect_execution_recovery(path)
+            module = report["modules"][0]
+
+            self.assertEqual(report["recovery_status"], "REVIEW_REQUIRED")
+            self.assertEqual(module["artifact_status"], "INTERRUPTED")
+            self.assertEqual(module["unreferenced_artifact"], {
+                "status": "PRESENT", "file": orphan.name, "kind": "REGULAR_FILE",
+            })
+            self.assertEqual(path.read_bytes(), journal_before)
+            self.assertEqual(orphan.read_bytes(), orphan_before)
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "O_NOFOLLOW is unavailable")
+    def test_unreferenced_symlink_is_identified_without_following_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "execution.jsonl"
+            journal = ExecutionJournal.create(path, "phase2ax-orphan-link", [MODULES[0]])
+            journal.start_module(MODULES[0])
+            target = root / "outside.bin"
+            target.write_bytes(b"external synthetic bytes")
+            orphan = root / "execution_module_1.json"
+            orphan.symlink_to(target)
+            journal_before = path.read_bytes()
+            target_before = target.read_bytes()
+
+            report = inspect_execution_recovery(path)
+
+            self.assertEqual(report["modules"][0]["unreferenced_artifact"], {
+                "status": "PRESENT", "file": orphan.name, "kind": "SYMLINK",
+            })
+            self.assertTrue(orphan.is_symlink())
+            self.assertEqual(path.read_bytes(), journal_before)
+            self.assertEqual(target.read_bytes(), target_before)
+
+    def test_absent_unreferenced_sidecar_is_explicitly_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.jsonl"
+            journal = ExecutionJournal.create(path, "phase2ax-no-orphan", [MODULES[0]])
+            journal.start_module(MODULES[0])
+
+            report = inspect_execution_recovery(path)
+
+            self.assertEqual(report["modules"][0]["unreferenced_artifact"], {
+                "status": "ABSENT", "file": "execution_module_1.json", "kind": None,
+            })
+
     def test_permission_denied_sidecar_is_review_required_and_read_only(self):
         with tempfile.TemporaryDirectory() as directory:
             path, _journal, _execution_id = self._journal(directory)
