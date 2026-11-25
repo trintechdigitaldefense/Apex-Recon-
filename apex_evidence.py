@@ -180,8 +180,8 @@ def build_evidence_record(
 
     if result["module"] == "HTTP Security Assessment":
         provenance = {
-            "method": "Direct observation of bounded HTTP response status, headers, and capped HTML sample",
-            "request_limit": "At most two read-only GET requests; at most 16 KiB of HTML read in total",
+            "method": "Direct observation of bounded HTTP/HTTPS response status, headers, redirect behavior, and capped response-body samples",
+            "request_limit": "At most two read-only GET requests; at most 8 KiB of response body sampled per response (16 KiB total), without a Range request",
             "interpretation": "Header observations and heuristic fingerprints do not prove exploitability or a complete technology inventory",
         }
     else:
@@ -210,7 +210,7 @@ def build_evidence_record(
                 key: (_safe_url(result.get(key)) if key in ("http_final_url", "https_final_url") else result.get(key))
                 for key in (
                     "http_status", "http_final_scheme", "http_redirected_to_https",
-                    "https_status", "http_final_url", "https_final_url", "port",
+                    "https_status", "http_final_url", "https_final_url", "http_https_comparison", "port",
                     "verified", "protocol", "cipher", "certificate", "error_type",
                 ) if key in result
             },

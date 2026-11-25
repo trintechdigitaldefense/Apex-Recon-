@@ -40,10 +40,20 @@ class FetchResult:
     headers: Any
     final_url: str
     body: bytes = b""
+    redirect_chain: tuple[dict, ...] = ()
+    content_type: str = ""
+    content_length: int | None = None
+    body_bytes_read: int = 0
+    body_sample_limit_reached: bool = False
+    body_read_error: str | None = None
 
 
 class SameHostRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Allow only one same-host, same-path HTTP->HTTPS upgrade redirect."""
+    """Allow one same-host HTTP->HTTPS upgrade and retain its response metadata."""
+
+    def __init__(self):
+        super().__init__()
+        self.redirects: list[dict] = []
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         try:
@@ -82,7 +92,24 @@ class SameHostRedirectHandler(urllib.request.HTTPRedirectHandler):
             raise RedirectScopeError("redirect to non-standard HTTPS port blocked")
         if new.path != old.path or new.query:
             raise RedirectScopeError("redirect path/query scope change blocked")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected_request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected_request is not None:
+            raw_length = headers.get("Content-Length") if hasattr(headers, "get") else None
+            try:
+                content_length = int(raw_length) if raw_length is not None else None
+                if content_length is not None and content_length < 0:
+                    content_length = None
+            except (TypeError, ValueError):
+                content_length = None
+            content_type = headers.get("Content-Type", "") if hasattr(headers, "get") else ""
+            self.redirects.append({
+                "status": int(code),
+                "source_url": _safe_url(req.full_url),
+                "destination_url": _safe_url(urllib.parse.urljoin(req.full_url, newurl)),
+                "content_type": str(content_type).split(";", 1)[0].strip().lower(),
+                "content_length": content_length,
+            })
+        return redirected_request
 
 
 def normalize_target_url(value: str) -> urllib.parse.SplitResult:
@@ -126,31 +153,50 @@ def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> FetchResult:
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
-            "Range": f"bytes=0-{MAX_RESPONSE_BYTES - 1}",
             "Connection": "close",
             "Accept-Encoding": "identity",
         },
         method="GET",
     )
-    opener = urllib.request.build_opener(SameHostRedirectHandler())
+    redirect_handler = SameHostRedirectHandler()
+    opener = urllib.request.build_opener(redirect_handler)
     try:
         response = opener.open(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
         # HTTP 4xx/5xx is still a valid HTTP response whose headers can be assessed.
         response = exc
     with response:
-        content_type = str(response.headers.get("Content-Type", "")).lower()
+        content_type = str(response.headers.get("Content-Type", "")).split(";", 1)[0].strip().lower()
+        raw_length = response.headers.get("Content-Length")
+        try:
+            content_length = int(raw_length) if raw_length is not None else None
+            if content_length is not None and content_length < 0:
+                content_length = None
+        except (TypeError, ValueError):
+            content_length = None
         body = b""
-        if "text/html" in content_type or "application/xhtml+xml" in content_type:
-            try:
-                body = response.read(MAX_RESPONSE_BYTES)
-            except (TimeoutError, socket.timeout, OSError):
-                body = b""
+        body_read_error = None
+        try:
+            # Read a bounded sample for every content type so comparison can
+            # distinguish an empty response from one that returned bytes.
+            # This is a client-side cap; it does not ask the server for HTTP Range.
+            body = response.read(MAX_RESPONSE_BYTES)
+        except (TimeoutError, socket.timeout, OSError) as exc:
+            body_read_error = type(exc).__name__
         return FetchResult(
             status=int(response.getcode()),
             headers=response.headers,
             final_url=response.geturl(),
             body=body,
+            redirect_chain=tuple(redirect_handler.redirects),
+            content_type=content_type,
+            content_length=content_length,
+            body_bytes_read=len(body),
+            body_sample_limit_reached=(
+                len(body) >= MAX_RESPONSE_BYTES
+                or (content_length is not None and content_length > len(body))
+            ),
+            body_read_error=body_read_error,
         )
 
 
@@ -594,6 +640,112 @@ def _inspect_cookies(headers: Any, secure_transport: bool) -> list[dict]:
                                      "Confirm cookie scope, lifetime, and SameSite mode match the application's authentication design."))
     return findings
 
+def _response_summary(requested_url: str, result: Any) -> dict | None:
+    """Return bounded, non-content response metadata for HTTP/HTTPS comparison."""
+    if not isinstance(result, FetchResult):
+        return None
+    return {
+        "requested_url": _safe_url(requested_url),
+        "final_url": _safe_url(result.final_url),
+        "final_scheme": urllib.parse.urlsplit(result.final_url).scheme.lower(),
+        "status": result.status,
+        "status_class": _status_class(result.status),
+        "content_type": result.content_type or None,
+        "content_length": result.content_length,
+        "body_bytes_sampled": result.body_bytes_read,
+        "body_sample_limit_reached": result.body_sample_limit_reached,
+        "body_read_error": result.body_read_error,
+        "redirect_chain": list(result.redirect_chain),
+    }
+
+
+def _build_http_https_comparison(
+    http_url: str, https_url: str, http_result: Any, https_result: Any
+) -> dict:
+    """Compare the same bounded GET path over HTTP and HTTPS without retaining bodies."""
+    http_ok = isinstance(http_result, FetchResult)
+    https_ok = isinstance(https_result, FetchResult)
+    redirects = list(http_result.redirect_chain) if http_ok else []
+    upgraded = bool(
+        http_ok
+        and redirects
+        and urllib.parse.urlsplit(http_result.final_url).scheme.lower() == "https"
+    )
+
+    if upgraded:
+        first_hop = redirects[0]
+        http_response = {
+            "requested_url": _safe_url(http_url),
+            "final_url": _safe_url(http_result.final_url),
+            "final_scheme": "https",
+            "status": first_hop["status"],
+            "status_class": _status_class(first_hop["status"]),
+            "content_type": first_hop.get("content_type") or None,
+            "content_length": first_hop.get("content_length"),
+            "body_bytes_sampled": None,
+            "body_sample_limit_reached": None,
+            "body_read_error": None,
+            "redirect_chain": redirects,
+        }
+        outcome = "HTTP_REDIRECTED_TO_HTTPS"
+        http_content_observed = None
+    else:
+        http_response = _response_summary(http_url, http_result)
+        if not http_ok:
+            outcome = "HTTP_UNAVAILABLE"
+            http_content_observed = None
+        elif http_result.body_read_error:
+            outcome = "HTTP_RESPONSE_BODY_UNREADABLE"
+            http_content_observed = None
+        elif http_result.body_bytes_read:
+            outcome = "HTTP_CONTENT_OBSERVED"
+            http_content_observed = True
+        else:
+            outcome = "HTTP_RESPONSE_WITHOUT_BODY"
+            http_content_observed = False
+
+    https_response = _response_summary(https_url, https_result)
+    direct_comparison = None
+    if http_ok and https_ok and not upgraded:
+        body_comparable = not (
+            http_result.body_sample_limit_reached
+            or https_result.body_sample_limit_reached
+            or http_result.body_read_error
+            or https_result.body_read_error
+        )
+        direct_comparison = {
+            "status_matches": http_result.status == https_result.status,
+            "content_type_matches": http_result.content_type == https_result.content_type,
+            "body_samples_match": (
+                http_result.body == https_result.body if body_comparable else None
+            ),
+            "body_samples_comparable": body_comparable,
+        }
+
+    return {
+        "method": "GET",
+        "same_hostname": True,
+        "same_path": True,
+        "query_string_sent": False,
+        "request_count": 1 if upgraded else 2,
+        "outcome": outcome,
+        "http_content_observed": http_content_observed,
+        "http_response": http_response,
+        "https_response": https_response,
+        "direct_response_comparison": direct_comparison,
+        "interpretation": (
+            "The HTTP request received an allowed same-host HTTP-to-HTTPS redirect. "
+            "The redirect status and destination are recorded; the HTTPS destination response "
+            "was reused rather than requested a second time."
+            if upgraded else
+            "HTTP and HTTPS were requested independently using the same GET method and path. "
+            "Body comparison is limited to the bounded samples and is not a full representation comparison."
+            if http_ok and https_ok else
+            "One or both endpoints could not be fully compared; unavailable response data is not treated as a clean result."
+        ),
+    }
+
+
 def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
     """Assess HTTP->HTTPS behavior and common response headers for one URL.
 
@@ -631,7 +783,13 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         except (urllib.error.URLError, TimeoutError, socket.timeout, ssl.SSLError, OSError) as exc:
             https_result = exc
 
-    fingerprints = fingerprint(https_result.headers, https_result.body) if isinstance(https_result, FetchResult) else []
+    fingerprints = (
+        fingerprint(
+            https_result.headers,
+            https_result.body if https_result.content_type in ("text/html", "application/xhtml+xml") else b"",
+        )
+        if isinstance(https_result, FetchResult) else []
+    )
     findings = []
     if isinstance(http_result, FetchResult):
         final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower()
@@ -685,6 +843,9 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
 
     http_final_scheme = urllib.parse.urlsplit(http_result.final_url).scheme.lower() if isinstance(http_result, FetchResult) else None
     http_redirected_to_https = http_final_scheme == "https"
+    http_https_comparison = _build_http_https_comparison(
+        http_url, https_url, http_result, https_result
+    )
 
     return {
         "schema_version": "1.0",
@@ -699,11 +860,12 @@ def assess_url(target: str, timeout: float = DEFAULT_TIMEOUT) -> dict:
         "https_status_class": _status_class(https_result.status) if isinstance(https_result, FetchResult) else None,
         "http_final_url": _safe_url(http_result.final_url) if isinstance(http_result, FetchResult) else None,
         "https_final_url": _safe_url(https_result.final_url) if isinstance(https_result, FetchResult) else None,
+        "http_https_comparison": http_https_comparison,
         "findings": findings,
         "fingerprints": fingerprints,
         "limitations": [
             "One URL path only; no crawling or common-path discovery.",
-            f"At most two read-only GET requests; at most {MAX_RESPONSE_BYTES} HTML bytes per response (16 KiB total) are read for passive fingerprinting.",
+            f"At most two read-only GET requests; at most {MAX_RESPONSE_BYTES} response-body bytes per response (16 KiB total) are sampled client-side without sending a Range request.",
             "CMS and technology fingerprints are heuristic observations, not proof of installed components or versions.",
             "Header presence is not proof that a policy is correctly configured or effective.",
             "No vulnerability exploitation or authenticated workflow testing is performed.",
@@ -720,6 +882,7 @@ def _safe_url(url: str) -> str:
 
 def generate_html_report(result: dict, duration_seconds: float) -> str:
     """Write a self-contained, escaped HTML report for one HTTP assessment."""
+    import json
     import os
     from datetime import datetime
     from html import escape
@@ -766,6 +929,14 @@ def generate_html_report(result: dict, duration_seconds: float) -> str:
         rows.append("<tr><td colspan='6'>No findings were returned. This is not proof of security.</td></tr>")
 
     limit_items = "".join(f"<li>{escape(str(item))}</li>" for item in limitations)
+    comparison = result.get("http_https_comparison")
+    if isinstance(comparison, dict):
+        comparison_html = (
+            f"<p><strong>Outcome:</strong> {escape(str(comparison.get('outcome', 'UNKNOWN')))}</p>"
+            f"<pre class='comparison'>{escape(json.dumps(comparison, indent=2, sort_keys=True))}</pre>"
+        )
+    else:
+        comparison_html = "<p>HTTP/HTTPS comparison data was not included in this assessment record.</p>"
     fingerprints = result.get("fingerprints", [])
     fingerprint_rows = []
     for item in fingerprints if isinstance(fingerprints, list) else []:
@@ -805,7 +976,7 @@ main{{max-width:1180px;margin:0 auto;padding:28px 18px 48px}}header,.panel{{back
 .notice{{border-left:4px solid var(--gold);padding:10px 14px;background:#292516;color:#f6e8b2;border-radius:4px}}
 .table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:850px}}th,td{{text-align:left;vertical-align:top;padding:11px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}}th{{color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:1px}}
 .severity{{font-weight:800;font-size:11px}}.critical,.high{{color:var(--red)}}.medium{{color:var(--orange)}}.low{{color:var(--gold)}}.info{{color:var(--cyan)}}.unknown{{color:var(--muted)}}
-li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
+li{{margin:6px 0;color:var(--muted)}}.comparison{{white-space:pre-wrap;overflow-wrap:anywhere;background:#0a121d;border:1px solid var(--line);border-radius:8px;padding:14px;font:12px/1.5 ui-monospace,monospace;color:var(--text)}}footer{{color:var(--muted);font-size:12px;margin-top:24px}}
 @media print{{body{{background:#fff;color:#111}}header,.panel,.stat{{background:#fff;color:#111;border-color:#ccc}}.meta,li,footer{{color:#333}}.notice{{background:#fff8dc;color:#222}}}}
 </style>
 </head>
@@ -822,6 +993,7 @@ li{{margin:6px 0;color:var(--muted)}}footer{{color:var(--muted);font-size:12px;m
 <div class="table-wrap"><table><thead><tr><th>Severity / review priority</th><th>Check</th><th>Status</th><th>Evidence</th><th>Recommendation status</th><th>Recommended action</th></tr></thead>
 <tbody>{''.join(rows)}</tbody></table></div>
 </section>
+<section class="panel"><h2>HTTP/HTTPS Response Comparison</h2>{comparison_html}</section>
 <section class="panel"><h2>CMS and Technology Fingerprints</h2><p class="meta">Passive fingerprints from response headers and a capped HTML sample. Confidence describes fingerprint strength, not certainty that a component is installed.</p><div class="table-wrap"><table><thead><tr><th>Category</th><th>Observed</th><th>Confidence</th><th>Evidence markers</th><th>Source</th></tr></thead><tbody>{fingerprint_html}</tbody></table></div></section>
 <section class="panel"><h2>Assessment Limitations</h2><ul>{limit_items}</ul></section>
 <footer>CONFIDENTIAL — Intended only for personnel authorized to receive this assessment.<br>TrinTech Digital Defense · ApexRecon · Operator-initiated assessment</footer>
