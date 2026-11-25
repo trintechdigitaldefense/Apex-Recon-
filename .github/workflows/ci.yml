@@ -53,7 +53,6 @@ on:
       - phase2as-recovery-workflow-integrity
       - phase2at-operator-recovery-inspection
       - phase2au-recovery-cli-process-validation
-      - phase2au-recovery-cli-process-validation
 
   pull_request:
     branches:
@@ -100,6 +99,7 @@ on:
       - phase2aq-checkpoint-failure-stop
       - phase2ar-execution-journal-recovery-diagnostics
       - phase2at-operator-recovery-inspection
+      - phase2au-recovery-cli-process-validation
 
 permissions:
   contents: read
