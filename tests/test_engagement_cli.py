@@ -231,6 +231,82 @@ class ModuleAssemblyTests(unittest.TestCase):
         self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
         self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "COMPLETED")
 
+    def test_before_run_checkpoint_failure_aborts_remaining_modules_when_enabled(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        calls = []
+
+        def checkpoint(_name):
+            raise OSError("journal storage unavailable")
+
+        outcomes = run_selected_modules(
+            selected,
+            {
+                MODULE_NAMES[0]: lambda: calls.append("first"),
+                MODULE_NAMES[2]: lambda: calls.append("second"),
+            },
+            before_run=checkpoint,
+            abort_on_checkpoint_error=True,
+        )
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(calls, [])
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "NOT_RUN")
+        self.assertIn("checkpoint failed", by_name[MODULE_NAMES[0]]["limitations"][0])
+
+    def test_finish_checkpoint_failure_aborts_remaining_modules_when_enabled(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        calls = []
+
+        def first_runner():
+            calls.append("first")
+            return {
+                "status": "COMPLETED", "target_scope": {"target": "example.test"},
+                "findings": [], "duration_seconds": 0.1,
+            }
+
+        def broken_finish(_name, _outcome):
+            raise OSError("journal storage unavailable")
+
+        def second_runner():
+            calls.append("second")
+            return {
+                "status": "COMPLETED", "target_scope": {"target": "example.test"},
+                "findings": [], "duration_seconds": 0.1,
+            }
+
+        outcomes = run_selected_modules(
+            selected,
+            {MODULE_NAMES[0]: first_runner, MODULE_NAMES[2]: second_runner},
+            on_finish=broken_finish,
+            abort_on_checkpoint_error=True,
+        )
+        entries = assemble_module_results(selected, outcomes)
+        by_name = {entry["module"]: entry for entry in entries}
+        self.assertEqual(calls, ["first"])
+        self.assertEqual(by_name[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertEqual(by_name[MODULE_NAMES[2]]["status"], "NOT_RUN")
+        self.assertIn("checkpointed", by_name[MODULE_NAMES[0]]["limitations"][0])
+
+    def test_checkpoint_failure_continues_by_default_for_legacy_callers(self):
+        selected = {MODULE_NAMES[0], MODULE_NAMES[2]}
+        calls = []
+
+        def broken_checkpoint(_name):
+            raise OSError("synthetic checkpoint failure")
+
+        outcomes = run_selected_modules(
+            selected,
+            {
+                MODULE_NAMES[0]: lambda: calls.append("first"),
+                MODULE_NAMES[2]: lambda: calls.append("second"),
+            },
+            before_run=broken_checkpoint,
+        )
+        self.assertEqual(calls, [])
+        self.assertEqual(outcomes[MODULE_NAMES[0]]["status"], "FAILED")
+        self.assertEqual(outcomes[MODULE_NAMES[2]]["status"], "FAILED")
+
     def test_runner_missing_or_returns_none_is_recorded_without_abort(self):
         selected = {MODULE_NAMES[0], MODULE_NAMES[1]}
         outcomes = run_selected_modules(selected, {MODULE_NAMES[0]: lambda: None})
