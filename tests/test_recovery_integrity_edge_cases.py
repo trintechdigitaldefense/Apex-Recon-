@@ -40,7 +40,7 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
         unsigned = dict(events[-1])
         unsigned.pop("event_hash", None)
         events[-1]["event_hash"] = _hash_event(unsigned)
-        path.write_bytes(b"".join(_canonical(item) + b"\\n" for item in events))
+        path.write_bytes(b"".join(_canonical(item) + b"\n" for item in events))
 
     def test_duplicate_module_start_with_valid_hash_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -50,7 +50,7 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
                 len(events) + 1, execution_id, "MODULE_STARTED",
                 events[-1]["event_hash"], module=MODULES[0],
             )
-            path.write_bytes(path.read_bytes() + _canonical(duplicate) + b"\\n")
+            path.write_bytes(path.read_bytes() + _canonical(duplicate) + b"\n")
             before = path.read_bytes()
 
             report = inspect_execution_journal(path)
@@ -67,7 +67,7 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
                 len(events) + 1, execution_id, "MODULE_FINISHED",
                 events[-1]["event_hash"], module=MODULES[0], status="FAILED",
             )
-            path.write_bytes(path.read_bytes() + _canonical(duplicate) + b"\\n")
+            path.write_bytes(path.read_bytes() + _canonical(duplicate) + b"\n")
 
             report = inspect_execution_journal(path)
 
@@ -93,7 +93,7 @@ class RecoveryIntegrityEdgeCaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path, _journal, _execution_id = self._journal(directory, with_artifact=False)
             self._rewrite_last_event(
-                path, artifact_file="..\\\\outside.json", artifact_sha256="a" * 64,
+                path, artifact_file="..\\outside.json", artifact_sha256="a" * 64,
             )
             before = path.read_bytes()
 
