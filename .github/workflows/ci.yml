@@ -53,6 +53,7 @@ on:
       - phase2as-recovery-workflow-integrity
       - phase2at-operator-recovery-inspection
       - phase2au-recovery-cli-process-validation
+      - phase2av-recovery-integrity-edge-cases
 
   pull_request:
     branches:

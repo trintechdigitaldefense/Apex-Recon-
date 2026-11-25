@@ -213,6 +213,7 @@ def _verify_bytes(data: bytes) -> dict:
                             raise ValueError("artifact checksum has no artifact path")
                     else:
                         if (not isinstance(artifact_file, str) or Path(artifact_file).name != artifact_file
+                                or "/" in artifact_file or "\\" in artifact_file
                                 or not artifact_file.endswith(".json")
                                 or not isinstance(artifact_sha256, str)
                                 or len(artifact_sha256) != 64
