@@ -36,12 +36,7 @@ try:
     if operation == "start":
         journal.start_module(module)
     elif operation == "finish":
-        journal.finish_module(module, "COMPLETED", {
-            "status": "COMPLETED",
-            "target_scope": {"scope": "synthetic-concurrency-test"},
-            "findings": [],
-            "duration_seconds": 0.01,
-        })
+        journal.finish_module(module, "COMPLETED")
     else:
         raise SystemExit("unsupported operation")
 except ExecutionJournalError:
